@@ -1,0 +1,25 @@
+[project]
+name = "manga-optimizer"
+version = "0.1.0"
+description = "Optimize manga files for e-readers"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Bebop182" },
+]
+requires-python = ">=3.13"
+dependencies = [
+    "EbookLib==0.20",
+    "lxml==6.1.3",
+    "numpy==2.5.2",
+    "pillow==12.3.0",
+    "six==1.17.0"
+]
+
+[tool.setuptools]
+py-modules = [
+    "einkFormater",
+    "epub",
+    "mobi",
+    "rainbowEffectEraser",
+]
