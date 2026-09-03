@@ -18,8 +18,7 @@ dependencies = [
 
 [tool.setuptools]
 py-modules = [
-    "einkFormater",
+    "manga_optimizer",
     "epub",
-    "mobi",
-    "rainbowEffectEraser",
+    "rainbow_effect_eraser",
 ]
