@@ -6,7 +6,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from PIL import Image
 import numpy as np
-from epub import pngs_to_epub
+from .export.epub import pngs_to_epub
 # from rainbowEffectEraser import erase_rainbow_artifacts
 
 # DISPLAY_RES = (1072, 1448) #Kobo Clara Color
@@ -15,7 +15,7 @@ DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
 SUPPORTED_IMAGES = {'.png', '.jpg', '.jpeg', '.webp'}
 FLOW_DIRECTION = ('lr', 'rl')
 OUTPUT_FORMATS = ('cbz', 'epub', 'pdf')
-CORES = os.cpu_count()
+
 
 def process_image(image:Image.Image) -> Image.Image:
     if image.mode != 'L':
@@ -255,4 +255,3 @@ def main(input_path: Path, output_path: Path, formats: list[str], flow_direction
                 case 'pdf':
                     exportPDF(processed, f"{input_path.name}.pdf", output_path)
 
-main()

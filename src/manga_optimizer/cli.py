@@ -1,6 +1,9 @@
 import argparse
+import os
 from pathlib import Path
 from . import app
+
+CORES = os.cpu_count()
 
 WRITING_MODE_ALIASES = {
     "lr": "horizontal-lr",
@@ -41,7 +44,7 @@ def main() -> int:
     parser.add_argument(
         "-f",
         "--format",
-        choices=OUTPUT_FORMATS,
+        choices=app.OUTPUT_FORMATS,
         type=str,
         nargs='+',
         help='Output format'

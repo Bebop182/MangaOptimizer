@@ -19,9 +19,5 @@ dependencies = [
 [project.scripts]
 manga-optimizer = "manga_optimizer.cli:main"
 
-[tool.setuptools]
-py-modules = [
-    "manga_optimizer",
-    "epub",
-    "rainbow_effect_eraser",
-]
+[tool.setuptools.packages.find]
+where = ["src"]
