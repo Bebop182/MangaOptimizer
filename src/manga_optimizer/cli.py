@@ -3,15 +3,16 @@ import os
 from pathlib import Path
 from . import app
 
+DEFAULT_OUTPUT_PATH = './var/output/'
 CORES = os.cpu_count()
 
 WRITING_MODE_ALIASES = {
-    "lr": "horizontal-lr",
-    "rl": "horizontal-rl",
+    'lr': 'horizontal-lr',
+    'rl': 'horizontal-rl',
 }
 
 # alias don't need to be present, as choices will be matched against after parsing type
-WRITING_MODES = ("horizontal-lr", "horizontal-rl")
+WRITING_MODES = ('horizontal-lr', 'horizontal-rl')
 
 def parse_writing_mode(value: str) -> str:
     value = value.lower()
@@ -21,55 +22,57 @@ def parse_writing_mode(value: str) -> str:
     return WRITING_MODE_ALIASES.get(value, value)
 
 def main() -> int:
-    print("Running the application")
+    print('Running the application')
 
     parser = argparse.ArgumentParser(
-        description="Pack and process images from a folder to a CBZ/EPUB file optimized for e-readers like Kobo Clara Color"
+        description='Pack and process images from a folder to a CBZ/EPUB file optimized for e-readers like Kobo Clara Color'
     )
     
     parser.add_argument(
-        "input_path",
+        'input_path',
         type=Path,
-        help="Path to the image file"
+        help='Path to the image file'
     )
 
     parser.add_argument(
-        "-o",
-        "--output-path",
+        '-o',
+        '--output-path',
         type=Path,
-        default="./output/",
-        help="Where to export the CBZ"
+        default=Path(DEFAULT_OUTPUT_PATH),
+        help='Where to export the ebook'
     )
 
     parser.add_argument(
-        "-f",
-        "--format",
+        '-f',
+        '--formats',
         choices=app.OUTPUT_FORMATS,
         type=str,
         nargs='+',
-        help='Output format'
+        default=['cbz'],
+        help='Output formats'
     )
 
     parser.add_argument(
-        "-d",
-        "--flow-direction",
+        '-d',
+        '--flow-direction',
         type=parse_writing_mode,
+        default='horizontal-rl',
         choices=WRITING_MODES,
-        default="horizontal-rl",
-        help="Page turning direction (default: horizontal-rl)",
+        
+        help='Page turning direction (default: horizontal-rl)',
     )
 
     parser.add_argument(
-        "-w",
-        "--worker",
+        '-w',
+        '--workers',
         type=int,
-        choices=range(1,CORES+1),
         default=4,
+        choices=range(1,CORES+1),
         help='Number of parallel threads'
     )
 
     args = parser.parse_args()
 
-    manga_optimizer.main(args.input_path, args.output_path, args.formats, args.flow_direction, args.worker_count)
+    app.main(args.input_path, args.output_path, args.formats, args.flow_direction, args.workers)
     
     return 0

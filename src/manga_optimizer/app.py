@@ -37,7 +37,7 @@ def process_image(image:Image.Image) -> Image.Image:
     return image
 
 def has_content(image, threshold=12, min_fraction=0.001):
-    image = image.convert("L")
+    image = image.convert('L')
     image.thumbnail((512, 512))
 
     pixels = np.asarray(image, dtype=np.int16)
@@ -65,11 +65,11 @@ def simple_crop(
     threshold: int = 30,
     padding: int = 8,
 ) -> Image.Image:
-    """
+    '''
     Crop a Pillow image to its non-background content.
 
     Works with black-on-white and white-on-black scans.
-    """
+    '''
     pixels = np.asarray(image)
 
     height, width = pixels.shape
@@ -90,7 +90,7 @@ def simple_crop(
     ys, xs = np.where(content)
 
     if len(xs) == 0:
-        raise ValueError("No content detected")
+        raise ValueError('No content detected')
 
     left = max(0, int(xs.min()) - padding)
     top = max(0, int(ys.min()) - padding)
@@ -147,23 +147,23 @@ def stretch_contrast(image):
         stretched = ((pixels.astype(np.float32) - minimum) * 255 /
                      (maximum - minimum)).clip(0, 255).astype(np.uint8)
 
-    return Image.fromarray(stretched, mode="L")
+    return Image.fromarray(stretched, mode='L')
 
 def image_job(image_path : Path, output_dir: Path) -> tuple[str, Path]:
     output_format = 'png'
     if image_path.suffix not in SUPPORTED_IMAGES:
-        raise NotImplementedError(f"File type not supported: {image_path.suffix}")
+        raise NotImplementedError(f'File type not supported: {image_path.suffix}')
 
     with Image.open(image_path) as image:
         # Run Processing
         image = process_image(image)
 
         if output_format == 'png':
-            processed_name = f"{image_path.stem}.png"
+            processed_name = f'{image_path.stem}.png'
             processed_path = output_dir.joinpath(processed_name)
             image.save(processed_path, optimize=True)
         else:
-            processed_name = f"{image_path.stem}.jpg"
+            processed_name = f'{image_path.stem}.jpg'
             processed_path = output_dir.joinpath(processed_name)
             image.convert('L').save(processed_path, quality=80, optimize=True)
 
@@ -184,11 +184,11 @@ def is_landscape(image:Image.Image):
 
 def exportCBZ(images: tuple[str, Path], filename, directory: Path):
     cbz_path = directory.joinpath(filename)
-    
-    with ZipFile(cbz_path, "w", compression=ZIP_DEFLATED) as archive:
+    with ZipFile(cbz_path, 'w', compression=ZIP_DEFLATED) as archive:
         for image in images:
             name, path = image
             archive.write(path, arcname=name)
+    print(cbz_path)
 
 def exportEPUB(images: tuple [str, Path], filename, directory: Path, flow_direction: str):
     paths = [
@@ -197,6 +197,7 @@ def exportEPUB(images: tuple [str, Path], filename, directory: Path, flow_direct
     ]
     epub = directory.joinpath(filename)
     pngs_to_epub(paths, epub, DISPLAY_RES, flow_direction=flow_direction)
+    print(epub)
 
 def exportPDF(images: tuple[str, Path], filename, directory: Path):
     pages = [
@@ -210,6 +211,7 @@ def exportPDF(images: tuple[str, Path], filename, directory: Path):
         append_images=pages[1:],
         resolution=167,
     )
+    print(pdf_path)
 
 # def exportMOBI(images: tuple[str, Path], filename, directory: Path):
 #     paths = [
@@ -225,7 +227,7 @@ def main(input_path: Path, output_path: Path, formats: list[str], flow_direction
     processed = []
     
     with (
-        TemporaryDirectory(prefix="image-batch-") as directory,
+        TemporaryDirectory(prefix='image-batch-') as directory,
         ThreadPoolExecutor(max_workers=worker_count) as executor
     ):
         temp_dir = Path(directory)
@@ -245,13 +247,14 @@ def main(input_path: Path, output_path: Path, formats: list[str], flow_direction
                 processed.append(
                     (image_name, image_path)
                 )
-
         for ext in formats:
             match ext:
                 case 'cbz':
-                    exportCBZ(processed, f"{input_path.name}.cbz", output_path)
+                    exportCBZ(processed, f'{input_path.name}.cbz', output_path)
                 case 'epub':
-                    exportEPUB(images=processed, filename=f"{input_path.name}.epub", directory=output_path, flow_direction=flow_direction)
+                    exportEPUB(images=processed, filename=f'{input_path.name}.epub', directory=output_path, flow_direction=flow_direction)
                 case 'pdf':
-                    exportPDF(processed, f"{input_path.name}.pdf", output_path)
+                    exportPDF(processed, f'{input_path.name}.pdf', output_path)
+                case _:
+                    print('no valid export format found')
 

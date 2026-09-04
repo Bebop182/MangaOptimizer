@@ -15,7 +15,7 @@ def pngs_to_epub(
 ) -> None:
 
     if not image_paths:
-        raise ValueError("No PNG files found")
+        raise ValueError('No PNG files found')
 
     width, height = design_size
     title = output_path.stem
@@ -24,26 +24,26 @@ def pngs_to_epub(
 
     # Use the first image as the cover.
     cover_path = image_paths[0]
-    cover_filename = "images/cover.png"
+    cover_filename = 'images/cover.png'
     book.set_cover(cover_filename, cover_path.read_bytes())
 
     pages = []
 
     for index, image_path in enumerate(image_paths[1:], start=1):
-        image_filename = f"images/page_{index}.png"
-        page_filename = f"page_{index}.xhtml"
+        image_filename = f'images/page_{index}.png'
+        page_filename = f'page_{index}.xhtml'
 
         image = epub.EpubItem(
-            uid=f"image_{index}",
+            uid=f'image_{index}',
             file_name=image_filename,
-            media_type="image/png",
+            media_type='image/png',
             content=image_path.read_bytes(),
         )
         book.add_item(image)
 
         page = epub.EpubHtml(
-            uid=f"page_{index}",
-            title=f"Page {index}",
+            uid=f'page_{index}',
+            title=f'Page {index}',
             file_name=page_filename,
             lang=lang,
         )
@@ -57,7 +57,7 @@ def pngs_to_epub(
     book.add_item(epub.EpubNcx())
 
     book.toc = tuple(
-        epub.Link(page.file_name, page.title, f"page_{i}")
+        epub.Link(page.file_name, page.title, f'page_{i}')
         for i, page in enumerate(pages, start=1)
     )
 
@@ -65,7 +65,7 @@ def pngs_to_epub(
     epub.write_epub(output_path, book)
 
 def getBookIdentifier(title: str):
-    return f"urn:uuid:{uuid4()}"
+    return f'urn:uuid:{uuid4()}'
 
 def bootstrap_epub(title: str, design_size: tuple[int, int], 
     lang:str='en', 
@@ -77,7 +77,7 @@ def bootstrap_epub(title: str, design_size: tuple[int, int],
     book.set_title(title)
     book.set_language(lang)
 
-    # <meta name="fixed-layout" content="true"/>
+    # <meta name='fixed-layout' content='true'/>
     book.add_metadata(namespace=None, value=None,
         name='meta', 
         others={
@@ -86,32 +86,32 @@ def bootstrap_epub(title: str, design_size: tuple[int, int],
         }
     )
 
-    # <meta name="original-resolution" content="1024x600"/>
+    # <meta name='original-resolution' content='1024x600'/>
     book.add_metadata(namespace=None, value=None,
         name='meta', 
         others={
             'name': 'originial-resolution',
-            'content': f"{design_size[0]}x{design_size[1]}"
+            'content': f'{design_size[0]}x{design_size[1]}'
         }
     )
 
-    # <meta name="orientation-lock" content="portrait"/>
+    # <meta name='orientation-lock' content='portrait'/>
     book.add_metadata(namespace=None, value=None,
         name='meta', 
         others={
             'name': 'orientation-lock',
-            'content': f"{orientation}"
+            'content': f'{orientation}'
         }
     )
 
-    # <meta name="primary-writing-mode" content="horizontal-rl"/>
+    # <meta name='primary-writing-mode' content='horizontal-rl'/>
     # Valid values are horizontal-lr, horizontal-rl, vertical-lr, and vertical-rl
     # default horizontal-lr
     book.add_metadata(namespace=None, value=None,
         name='meta', 
         others={
             'name': 'primary-writing-mode',
-            'content': f"{writing_mode}"
+            'content': f'{writing_mode}'
         }
     )
 
@@ -123,7 +123,7 @@ def get_page_template(
     width: int,
     height: int,
 ) -> str:
-    return f"""<!DOCTYPE html>
+    return f'''<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title>Page {index}</title>
@@ -161,4 +161,4 @@ def get_page_template(
   />
 </body>
 </html>
-"""
+'''
