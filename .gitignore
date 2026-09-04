@@ -1,14 +1,22 @@
-__pycache__/
-*.py[cod]
-.venv/
+# project
+var/
 env/
 .env
+*.log
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
 .pytest_cache/
+
+# build
 build/
 dist/
 *.egg-info/
-*.log
-.DS_Store
+*.spec
+
+# editor
 .vscode/
 .idea/
-var/
+.DS_Store
