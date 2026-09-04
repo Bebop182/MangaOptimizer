@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -17,6 +15,7 @@ DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
 SUPPORTED_IMAGES = {'.png', '.jpg', '.jpeg', '.webp'}
 FLOW_DIRECTION = ('lr', 'rl')
 OUTPUT_FORMATS = ('cbz', 'epub', 'pdf')
+CORES = os.cpu_count()
 
 def process_image(image:Image.Image) -> Image.Image:
     if image.mode != 'L':
@@ -220,63 +219,14 @@ def exportPDF(images: tuple[str, Path], filename, directory: Path):
 #     mobi = directory.joinpath(filename)
 #     pngs_to_mobi(paths, mobi, title=filename)
 
-def bootstrap_parser():
-    parser = argparse.ArgumentParser(
-        description="Pack and process images from a folder to a CBZ/EPUB file optimized for e-readers like Kobo Clara Color"
-    )
-    
-    parser.add_argument(
-        "input_path",
-        type=Path,
-        help="Path to the image file"
-    )
+def main(input_path: Path, output_path: Path, formats: list[str], flow_direction: str, worker_count: int) -> None:
 
-    parser.add_argument(
-        "-o",
-        "--output-path",
-        type=Path,
-        default="./output/",
-        help="Where to export the CBZ"
-    )
-
-    parser.add_argument(
-        "-f",
-        "--format",
-        choices=OUTPUT_FORMATS,
-        type=str,
-        nargs='+',
-        help='Output format'
-    )
-
-    parser.add_argument(
-        "-d",
-        "--flow-direction",
-        type=str,
-        choices=FLOW_DIRECTION,
-        default=FLOW_DIRECTION[0],
-        help='Page turning direction (default lr)'
-    )
-
-    parser.add_argument(
-        "-w",
-        "--worker",
-        type=int,
-        choices=range(1,9),
-        default=4,
-        help='Number of parallel threads'
-    )
-    return parser
-
-def main() -> None:
-    parser = bootstrap_parser()
-    args = parser.parse_args()
-
-    image_paths = images_from_dir(args.input_path)
+    image_paths = images_from_dir(input_path)
     processed = []
     
     with (
         TemporaryDirectory(prefix="image-batch-") as directory,
-        ThreadPoolExecutor(max_workers=7) as executor
+        ThreadPoolExecutor(max_workers=worker_count) as executor
     ):
         temp_dir = Path(directory)
 
@@ -296,13 +246,13 @@ def main() -> None:
                     (image_name, image_path)
                 )
 
-        for format in args.format:
-            match format:
+        for ext in formats:
+            match ext:
                 case 'cbz':
-                    exportCBZ(processed, f"{args.input_path.name}.cbz", args.output_path)
+                    exportCBZ(processed, f"{input_path.name}.cbz", output_path)
                 case 'epub':
-                    exportEPUB(images=processed, filename=f"{args.input_path.name}.epub", directory=args.output_path, flow_direction=args.flow_direction)
+                    exportEPUB(images=processed, filename=f"{input_path.name}.epub", directory=output_path, flow_direction=flow_direction)
                 case 'pdf':
-                    exportPDF(processed, f"{args.input_path.name}.pdf", args.output_path)
+                    exportPDF(processed, f"{input_path.name}.pdf", output_path)
 
 main()

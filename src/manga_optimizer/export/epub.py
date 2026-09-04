@@ -3,7 +3,6 @@ from pathlib import Path
 from uuid import uuid4
 
 from ebooklib import epub
-import logging
 
 def pngs_to_epub(
     image_paths: Iterable[Path],
@@ -11,7 +10,7 @@ def pngs_to_epub(
     design_size: tuple[int, int],
     *,
     lang: str = 'en',
-    flow_direction: str = 'lr',
+    writing_mode: str,
     orientation: str = 'portrait'
 ) -> None:
 
@@ -19,10 +18,9 @@ def pngs_to_epub(
         raise ValueError("No PNG files found")
 
     width, height = design_size
-
     title = output_path.stem
 
-    book = bootstrap_epub(title, design_size, lang, )
+    book = bootstrap_epub(title, design_size, lang, writing_mode, orientation)
 
     # Use the first image as the cover.
     cover_path = image_paths[0]
@@ -71,7 +69,7 @@ def getBookIdentifier(title: str):
 
 def bootstrap_epub(title: str, design_size: tuple[int, int], 
     lang:str='en', 
-    flow_direction: str = 'lr',
+    writing_mode: str = 'lr',
     orientation: str = 'portrait'
     ):
     book = epub.EpubBook()
@@ -109,7 +107,6 @@ def bootstrap_epub(title: str, design_size: tuple[int, int],
     # <meta name="primary-writing-mode" content="horizontal-rl"/>
     # Valid values are horizontal-lr, horizontal-rl, vertical-lr, and vertical-rl
     # default horizontal-lr
-    writing_mode = 'horizontal-rl' if flow_direction=='rl' else 'horizontal-lr'
     book.add_metadata(namespace=None, value=None,
         name='meta', 
         others={
