@@ -10,7 +10,7 @@ def pngs_to_epub(
     design_size: tuple[int, int],
     *,
     lang: str = 'en',
-    writing_mode: str,
+    writing_mode: str = 'horizontal-rl',
     orientation: str = 'portrait'
 ) -> None:
 

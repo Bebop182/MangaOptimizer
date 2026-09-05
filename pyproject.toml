@@ -22,6 +22,11 @@ manga-optimizer = "manga_optimizer.cli:main"
 [project.optional-dependencies]
 build = [
     "pyinstaller>=6.16",
+    
+]
+test = [
+    "pytest", 
+    "pytest-cov"
 ]
 
 [tool.setuptools.packages.find]

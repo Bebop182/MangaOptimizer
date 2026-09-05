@@ -149,8 +149,7 @@ def stretch_contrast(image):
 
     return Image.fromarray(stretched, mode='L')
 
-def image_job(image_path : Path, output_dir: Path) -> tuple[str, Path]:
-    output_format = 'png'
+def image_job(image_path : Path, output_dir: Path, output_format='png') -> list[Path]:
     if image_path.suffix not in SUPPORTED_IMAGES:
         raise NotImplementedError(f'File type not supported: {image_path.suffix}')
 
@@ -159,15 +158,13 @@ def image_job(image_path : Path, output_dir: Path) -> tuple[str, Path]:
         image = process_image(image)
 
         if output_format == 'png':
-            processed_name = f'{image_path.stem}.png'
-            processed_path = output_dir.joinpath(processed_name)
+            processed_path = output_dir / image_path.stem + '.png'
             image.save(processed_path, optimize=True)
         else:
-            processed_name = f'{image_path.stem}.jpg'
-            processed_path = output_dir.joinpath(processed_name)
+            processed_path = output_dir / image_path.stem + '.jpg'
             image.convert('L').save(processed_path, quality=80, optimize=True)
 
-    return processed_name, processed_path
+    return processed_path
 
 def images_from_dir(directory : Path):
     return [
@@ -182,36 +179,28 @@ def is_landscape(image:Image.Image):
         return True
     return False
 
-def exportCBZ(images: tuple[str, Path], filename, directory: Path):
-    cbz_path = directory.joinpath(filename)
-    with ZipFile(cbz_path, 'w', compression=ZIP_DEFLATED) as archive:
+def exportCBZ(images: list[Path], file_path: Path):
+    with ZipFile(file_path, 'w', compression=ZIP_DEFLATED) as archive:
         for image in images:
-            name, path = image
-            archive.write(path, arcname=name)
-    print(cbz_path)
+            archive.write(image)
+    print(file_path)
 
-def exportEPUB(images: tuple [str, Path], filename, directory: Path, flow_direction: str):
-    paths = [
-        path
-        for _,path in sorted(images, key=lambda image: image[0])
-    ]
-    epub = directory.joinpath(filename)
-    pngs_to_epub(paths, epub, DISPLAY_RES, flow_direction=flow_direction)
-    print(epub)
+def exportEPUB(images: list[Path], file_path: Path, flow_direction: str = 'horizontal-rl'):
+    pngs_to_epub(images, file_path, DISPLAY_RES, writing_mode=flow_direction)
+    print(file_path)
 
-def exportPDF(images: tuple[str, Path], filename, directory: Path):
+def exportPDF(images: list[Path], file_path: Path):
     pages = [
         Image.open(path)
-        for _,path in sorted(images, key=lambda image: image[0])
+        for path in sorted(images)
     ]
 
-    pdf_path = directory.joinpath(filename)
     pages[0].save(
-        pdf_path,
+        file_path,
         append_images=pages[1:],
         resolution=167,
     )
-    print(pdf_path)
+    print(file_path)
 
 # def exportMOBI(images: tuple[str, Path], filename, directory: Path):
 #     paths = [
@@ -221,9 +210,9 @@ def exportPDF(images: tuple[str, Path], filename, directory: Path):
 #     mobi = directory.joinpath(filename)
 #     pngs_to_mobi(paths, mobi, title=filename)
 
-def main(input_path: Path, output_path: Path, formats: list[str], flow_direction: str, worker_count: int) -> None:
+def main(input_dir: Path, output_dir: Path, formats: list[str], flow_direction: str, worker_count: int) -> None:
 
-    image_paths = images_from_dir(input_path)
+    image_paths = images_from_dir(input_dir)
     processed = []
     
     with (
@@ -239,22 +228,22 @@ def main(input_path: Path, output_path: Path, formats: list[str], flow_direction
 
         for future in as_completed(futures):
             try:
-                image_name, image_path = future.result()
+                image_path = future.result()
             except Exception as e:
                 print(e)
                 continue
             else:
-                processed.append(
-                    (image_name, image_path)
-                )
+                processed.append(image_path)
+
+        temp_name = output_dir / input_dir.name
         for ext in formats:
             match ext:
                 case 'cbz':
-                    exportCBZ(processed, f'{input_path.name}.cbz', output_path)
+                    exportCBZ(processed, temp_name + '.cbz')
                 case 'epub':
-                    exportEPUB(images=processed, filename=f'{input_path.name}.epub', directory=output_path, flow_direction=flow_direction)
+                    exportEPUB(processed, temp_name + '.epub', flow_direction=flow_direction)
                 case 'pdf':
-                    exportPDF(processed, f'{input_path.name}.pdf', output_path)
+                    exportPDF(processed, temp_name + '.pdf')
                 case _:
                     print('no valid export format found')
 
