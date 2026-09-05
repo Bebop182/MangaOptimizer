@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from zipfile import ZIP_DEFLATED, ZipFile
+from collections.abc import Callable
 
 from PIL import Image
 import numpy as np
@@ -16,49 +17,6 @@ SUPPORTED_IMAGES = {'.png', '.jpg', '.jpeg', '.webp'}
 FLOW_DIRECTION = ('lr', 'rl')
 OUTPUT_FORMATS = ('cbz', 'epub', 'pdf')
 
-
-def process_image(image:Image.Image) -> Image.Image:
-    if image.mode != 'L':
-        image = image.convert('L')
-
-    if not has_content(image):
-        raise ValueError(f"{image} doesn't seem to hold any content")
-
-    # check orientation for double pages
-    if is_landscape(image):
-        image = image.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
-
-    image = simple_crop(image, padding=0)
-    
-    image = smart_resize(image, max_deform=10)
-
-    image = image.quantize(colors=16, method=Image.Quantize.MEDIANCUT)
-
-    return image
-
-def has_content(image, threshold=12, min_fraction=0.001):
-    image = image.convert('L')
-    image.thumbnail((512, 512))
-
-    pixels = np.asarray(image, dtype=np.int16)
-
-    h, w = pixels.shape
-    n = max(1, min(h, w) // 20)
-
-    # Estimate background from the four corners
-    corners = np.concatenate([
-        pixels[:n, :n].ravel(),
-        pixels[:n, -n:].ravel(),
-        pixels[-n:, :n].ravel(),
-        pixels[-n:, -n:].ravel(),
-    ])
-
-    background = np.median(corners)
-
-    # Pixels sufficiently different from the background
-    content = np.abs(pixels - background) > threshold
-
-    return np.count_nonzero(content) / content.size >= min_fraction
 
 def simple_crop(
     image: Image.Image,
@@ -99,6 +57,7 @@ def simple_crop(
 
     return image.crop((left, top, right, bottom))
 
+
 def smart_resize(
     image: Image.Image,
     max_deform: int = 10
@@ -135,6 +94,7 @@ def smart_resize(
 
     return image.resize((width, height), resample=Image.Resampling.LANCZOS)
 
+
 def stretch_contrast(image):
     pixels = np.asarray(image, dtype=np.uint8)
 
@@ -149,35 +109,110 @@ def stretch_contrast(image):
 
     return Image.fromarray(stretched, mode='L')
 
-def image_job(image_path : Path, output_dir: Path, output_format='png') -> list[Path]:
-    if image_path.suffix not in SUPPORTED_IMAGES:
-        raise NotImplementedError(f'File type not supported: {image_path.suffix}')
 
-    with Image.open(image_path) as image:
-        # Run Processing
-        image = process_image(image)
+def has_content(image, threshold=12, min_fraction=0.001) -> bool:
+    image = image.convert('L')
+    image.thumbnail((512, 512))
 
-        if output_format == 'png':
-            processed_path = output_dir / image_path.stem + '.png'
-            image.save(processed_path, optimize=True)
-        else:
-            processed_path = output_dir / image_path.stem + '.jpg'
-            image.convert('L').save(processed_path, quality=80, optimize=True)
+    pixels = np.asarray(image, dtype=np.int16)
 
-    return processed_path
+    h, w = pixels.shape
+    n = max(1, min(h, w) // 20)
 
-def images_from_dir(directory : Path):
+    # Estimate background from the four corners
+    corners = np.concatenate([
+        pixels[:n, :n].ravel(),
+        pixels[:n, -n:].ravel(),
+        pixels[-n:, :n].ravel(),
+        pixels[-n:, -n:].ravel(),
+    ])
+
+    background = np.median(corners)
+
+    # Pixels sufficiently different from the background
+    content = np.abs(pixels - background) > threshold
+
+    return np.count_nonzero(content) / content.size >= min_fraction
+
+
+def images_from_dir(directory : Path) -> list[Path]:
     return [
         image_path
         for image_path in directory.iterdir()
         if image_path.is_file() and image_path.suffix.lower() in SUPPORTED_IMAGES
     ]
 
-def is_landscape(image:Image.Image):
+
+def is_landscape(image:Image.Image) -> bool:
     image_ratio = image.size[0] / image.size[1]
     if image_ratio > 1:
         return True
     return False
+
+
+def process_image(image:Image.Image) -> Image.Image:
+    if image.mode != 'L':
+        image = image.convert('L')
+
+    if not has_content(image):
+        raise ValueError(f"{image} doesn't seem to hold any content")
+
+    # check orientation for double pages
+    if is_landscape(image):
+        image = image.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
+
+    image = simple_crop(image, padding=0)
+    
+    image = smart_resize(image, max_deform=10)
+
+    image = image.quantize(colors=16, method=Image.Quantize.MEDIANCUT)
+
+    return image
+
+def image_export(image:Image.Image, output_path: Path) -> Path:
+    if output_path.suffix == '.png':
+        image.save(output_path, optimize=True)
+    else:
+        image.convert('L').save(output_path, quality=80, optimize=True)
+    return output_path
+
+
+def processing_job(input_path : Path, output_path: Path) -> list[Path]:
+    if input_path.suffix not in SUPPORTED_IMAGES:
+        raise NotImplementedError(f'File type not supported: {input_path.suffix}')
+
+    with Image.open(input_path) as image:
+        # Run Processing
+        image = process_image(image)
+        output_path = image_export(image, output_path)
+        
+    return output_path
+
+
+def process_batch(
+    image_paths: list[Path],
+    processing_job: Callable[[Path, Path], Path], 
+    tmp_dir: Path,
+    worker_count: int
+    ) -> list[Path]:
+    processed = []
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = [
+            executor.submit(processing_job, image_path, tmp_dir / (image_path.stem + '.png'))
+            for image_path in image_paths
+        ]
+
+        for future in as_completed(futures):
+            try:
+                image_path = future.result()
+            except Exception as e:
+                print(e)
+                continue
+            else:
+                processed.append(image_path)
+    # return processed
+    return sorted(processed, key=lambda path: path.stem)
+
 
 def exportCBZ(images: list[Path], file_path: Path):
     with ZipFile(file_path, 'w', compression=ZIP_DEFLATED) as archive:
@@ -185,9 +220,11 @@ def exportCBZ(images: list[Path], file_path: Path):
             archive.write(image)
     print(file_path)
 
+
 def exportEPUB(images: list[Path], file_path: Path, flow_direction: str = 'horizontal-rl'):
     pngs_to_epub(images, file_path, DISPLAY_RES, writing_mode=flow_direction)
     print(file_path)
+
 
 def exportPDF(images: list[Path], file_path: Path):
     pages = [
@@ -202,48 +239,25 @@ def exportPDF(images: list[Path], file_path: Path):
     )
     print(file_path)
 
-# def exportMOBI(images: tuple[str, Path], filename, directory: Path):
-#     paths = [
-#         path
-#         for _,path in sorted(images, key=lambda image: image[0])
-#     ]
-#     mobi = directory.joinpath(filename)
-#     pngs_to_mobi(paths, mobi, title=filename)
 
-def main(input_dir: Path, output_dir: Path, formats: list[str], flow_direction: str, worker_count: int) -> None:
+def main(
+    input_dir: Path, 
+    output_dir: Path,
+    formats: list[str],
+    flow_direction: str,
+    worker_count: int
+    ) -> None:
 
     image_paths = images_from_dir(input_dir)
-    processed = []
-    
-    with (
-        TemporaryDirectory(prefix='image-batch-') as directory,
-        ThreadPoolExecutor(max_workers=worker_count) as executor
-    ):
-        temp_dir = Path(directory)
-
-        futures = [
-            executor.submit(image_job, image_path, temp_dir)
-            for image_path in image_paths
-        ]
-
-        for future in as_completed(futures):
-            try:
-                image_path = future.result()
-            except Exception as e:
-                print(e)
-                continue
-            else:
-                processed.append(image_path)
-
+    with TemporaryDirectory(prefix='image-batch-') as temp_dir:
+        processed = process_batch(image_paths, processing_job, temp_dir)
         temp_name = output_dir / input_dir.name
-        for ext in formats:
-            match ext:
-                case 'cbz':
-                    exportCBZ(processed, temp_name + '.cbz')
-                case 'epub':
-                    exportEPUB(processed, temp_name + '.epub', flow_direction=flow_direction)
-                case 'pdf':
-                    exportPDF(processed, temp_name + '.pdf')
-                case _:
-                    print('no valid export format found')
-
+        if 'cbz' in formats:
+            exportCBZ(processed, temp_name.with_suffix('.cbz'))
+        if 'epub' in formats:
+            exportEPUB(
+                processed, temp_name.with_suffix('.epub'),
+                flow_direction=flow_direction
+                )
+        if 'pdf' in formats:
+            exportPDF(processed, temp_name.with_suffix('.pdf'))

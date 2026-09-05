@@ -1,8 +1,11 @@
 from manga_optimizer import app
 
-from pytest import fail
+import time
+import random
 from os import getcwd
 from pathlib import Path
+from pytest import fail
+
 from PIL import Image
 
 ROOT = Path(getcwd())
@@ -39,25 +42,72 @@ def test_images_from_dir():
     images = app.images_from_dir(TEST_BOOK)
     assert len(images) == 5
 
+def test_process_batch():
+    root = Path('path') / 'to' / 'images'
+    input_paths = [
+        root / 'image_001.jpg',
+        root / 'image_002.jpg',
+        root / 'image_003.jpg',
+        root / 'image_004.jpg',
+        root / 'image_005.jpg',
+        root / 'image_006.jpg',
+        root / 'image_007.jpg',
+        root / 'image_008.jpg',
+        root / 'image_009.jpg',
+    ]
+
+    # seed 42
+    rng = random.Random(42)
+    input_delays = {
+        path.stem: rng.uniform(0.01, 0.05)
+        for path in input_paths
+    }
+    
+    def fake_process(input_file: Path, output_file: Path) -> list[Path]:
+        delay = input_delays[input_file.stem]
+        time.sleep(delay)
+        return output_file
+
+    output_dir = Path('temp')
+    processed = app.process_batch(
+        input_paths,
+        fake_process,
+        output_dir,
+        worker_count=7
+        )
+    processed = [
+        image_path.stem
+        for image_path in processed
+    ]
+
+    expected = [
+        image_path.stem
+        for image_path in input_paths
+    ]
+    assert processed == expected
+
+
 def test_exportCBZ(tmp_path: Path):
     images = app.images_from_dir(TEST_BOOK)
-    ebook_path = tmp_path / (TEST_BOOK.stem+'.cbz')
+    ebook_path = tmp_path / (TEST_BOOK.stem + '.cbz')
     app.exportCBZ(images, ebook_path)
 
     assert ebook_path.exists()
     assert ebook_path.is_file()
 
+
 def test_exportEPUB(tmp_path: Path):
     images = app.images_from_dir(TEST_BOOK)
-    ebook_path = tmp_path / (TEST_BOOK.stem+'.epub')
+    ebook_path = tmp_path / (TEST_BOOK.stem + '.epub')
     app.exportEPUB(images, ebook_path)
 
     assert ebook_path.exists()
     assert ebook_path.is_file()
 
+
 def test_exportPDF(tmp_path: Path):
     images = app.images_from_dir(TEST_BOOK)
-    ebook_path = tmp_path / (TEST_BOOK.stem+'.pdf')
+    ebook_path = tmp_path / (TEST_BOOK.stem + '.pdf')
     app.exportPDF(images, ebook_path)
     
     assert ebook_path.exists()
