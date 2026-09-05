@@ -1,5 +1,5 @@
 import argparse
-import os
+from os import cpu_count
 from pathlib import Path
 from . import app
 
@@ -7,7 +7,7 @@ DEFAULT_OUTPUT_PATH = Path('./var/output/')
 DEFAULT_FORMATS = ['cbz']
 DEFAULT_FLOW_DIRECTION = 'horizontal-rl'
 DEFAULT_WORKERS = 4
-CORES = os.cpu_count()
+CORES = cpu_count()
 
 WRITING_MODE_ALIASES = {
     'lr': 'horizontal-lr',

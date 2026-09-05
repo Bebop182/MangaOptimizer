@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from zipfile import ZIP_DEFLATED, ZipFile
 from collections.abc import Callable
+from shutil import move
 
 from PIL import Image
 import numpy as np
@@ -15,7 +16,7 @@ DISPLAY_RES = (600, 800) # Kindle 8th Basic
 DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
 SUPPORTED_IMAGES = {'.png', '.jpg', '.jpeg', '.webp'}
 FLOW_DIRECTION = ('lr', 'rl')
-OUTPUT_FORMATS = ('cbz', 'epub', 'pdf')
+OUTPUT_FORMATS = ('cbz', 'epub', 'mobi', 'pdf')
 
 
 def simple_crop(
@@ -169,6 +170,7 @@ def process_image(image:Image.Image) -> Image.Image:
 
     return image
 
+
 def image_export(image:Image.Image, output_path: Path) -> Path:
     if output_path.suffix == '.png':
         image.save(output_path, optimize=True)
@@ -226,6 +228,11 @@ def exportEPUB(images: list[Path], file_path: Path, flow_direction: str = 'horiz
     print(file_path)
 
 
+def exportMOBI(epub: Path):
+    from .export.moby import epub_to_mobi
+    return epub_to_mobi(Path)
+
+
 def exportPDF(images: list[Path], file_path: Path):
     pages = [
         Image.open(path)
@@ -251,13 +258,24 @@ def main(
     image_paths = images_from_dir(input_dir)
     with TemporaryDirectory(prefix='image-batch-') as temp_dir:
         processed = process_batch(image_paths, processing_job, temp_dir)
-        temp_name = output_dir / input_dir.name
+        export_stem = output_dir / input_dir.name
+
         if 'cbz' in formats:
-            exportCBZ(processed, temp_name.with_suffix('.cbz'))
-        if 'epub' in formats:
+            exportCBZ(processed, export_stem.with_suffix('.cbz'))
+
+        if 'pdf' in formats:
+            exportPDF(processed, export_stem.with_suffix('.pdf'))
+
+        if 'epub' in formats or 'mobi' in formats:
+            epub_path = (export_stem if 'epub' in formats else temp_dir / input_dir.name).with_suffix('.epub')
             exportEPUB(
-                processed, temp_name.with_suffix('.epub'),
+                processed, epub_path,
                 flow_direction=flow_direction
                 )
-        if 'pdf' in formats:
-            exportPDF(processed, temp_name.with_suffix('.pdf'))
+        
+            if 'mobi' in formats:
+                exportMOBI(epub_path)
+
+                if 'epub' not in formats:
+                    mobi_path = epub_path.with_suffix('.mobi')
+                    move(mobi_path, export_stem.with_suffix('.mobi'))
