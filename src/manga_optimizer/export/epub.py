@@ -26,17 +26,18 @@ def pngs_to_epub(
 
     # Use the first image as the cover.
     cover_path = image_paths[0]
+    cover_filename = Path('images/cover').with_suffix(cover_path.suffix)
     with Image.open(cover_path) as cover:
         cover_fs = BytesIO()
         cover.convert('L').save(cover_fs, format="JPEG", quality=95, optimize=True)
+        cover_filename = cover_filename.with_suffix('.jpg')
 
-    cover_filename = 'images/cover.jpg'
     book.set_cover(cover_filename, cover_fs.getvalue())
 
     pages = []
 
     for index, image_path in enumerate(image_paths[1:], start=1):
-        image_filename = f'images/page_{index}.png'
+        image_filename = f'images/page_{index}{image_path.suffix}'
         page_filename = f'page_{index}.xhtml'
 
         image = epub.EpubItem(
@@ -82,6 +83,15 @@ def bootstrap_epub(title: str, design_size: tuple[int, int],
     book.set_identifier(getBookIdentifier(title))
     book.set_title(title)
     book.set_language(lang)
+    
+    # <meta name="book-type" content="comic"/>
+    book.add_metadata(namespace=None, value=None,
+        name='meta', 
+        others={
+            'name': 'book-type',
+            'content': 'comic'
+        }
+    )
 
     # <meta name='fixed-layout' content='true'/>
     book.add_metadata(namespace=None, value=None,
