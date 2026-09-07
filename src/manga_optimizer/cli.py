@@ -1,5 +1,5 @@
 import argparse
-from os import cpu_count
+import os
 from pathlib import Path
 from . import app
 
@@ -7,7 +7,7 @@ DEFAULT_OUTPUT_PATH = Path('./var/output/')
 DEFAULT_FORMATS = ['cbz']
 DEFAULT_FLOW_DIRECTION = 'horizontal-rl'
 DEFAULT_WORKERS = 4
-CORES = cpu_count()
+CORES = os.cpu_count()
 
 WRITING_MODE_ALIASES = {
     'lr': 'horizontal-lr',
@@ -27,6 +27,14 @@ def build_parser():
         'input_path',
         type=Path,
         help='Path to the image file'
+    )
+
+    parser.add_argument(
+        '-r',
+        '--recursive',
+        type=bool,
+        default=False,
+        help='Should handle subfolders as individual ebooks'
     )
 
     parser.add_argument(
@@ -73,12 +81,60 @@ def parse_writing_mode(value: str) -> str:
     # Input "horizontal-lr" - key not found, so returns the fallback "horizontal-lr"
     return WRITING_MODE_ALIASES.get(value, value)
 
+<<<<<<< Updated upstream
+=======
+
+def kindlegen_available() -> bool:
+    from shutil import which
+    kindlegen_path = which("kindlegen")  # Searches PATH for the executable
+    if kindlegen_path is None:
+        return False
+    return True
+
+
+def has_files(directory: Path) -> bool:
+    file_count = sum(
+        1 
+        for entry in os.scandir(directory)
+        if entry.is_file()
+    )
+    return file_count >= 2
+
+def validate_input_path(input_path: Path) -> int:
+    # TODO:
+    # if recursive
+    # get subdir
+    subdirs = [
+        path for path in input_path.iterdir()
+        if path.is_dir()
+    ]
+    for dir in subdirs:
+        # check if suitable
+        return
+    return 1
+
+
+>>>>>>> Stashed changes
 def main() -> int:
     print('Running the application')
 
     parser = build_parser()
     args = parser.parse_args()
 
+<<<<<<< Updated upstream
+=======
+    if (
+        not args.recursive and has_files(args.input_path) == False
+        or args.input_path.is_file()
+        ):
+        raise ValueError('Input path should be a directory containing images')
+
+    if 'mobi' in args.formats and not kindlegen_available():
+        raise RuntimeError(
+            "kindlegen is required. Install it and ensure it is on PATH."
+        )
+
+>>>>>>> Stashed changes
     app.main(args.input_path, args.output_path, args.formats, args.flow_direction, args.workers)
     
     return 0

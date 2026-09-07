@@ -1,7 +1,9 @@
 from collections.abc import Iterable
 from pathlib import Path
 from uuid import uuid4
+from io import BytesIO
 
+from PIL import Image
 from ebooklib import epub
 
 def pngs_to_epub(
@@ -24,8 +26,12 @@ def pngs_to_epub(
 
     # Use the first image as the cover.
     cover_path = image_paths[0]
-    cover_filename = 'images/cover.png'
-    book.set_cover(cover_filename, cover_path.read_bytes())
+    with Image.open(cover_path) as cover:
+        cover_fs = BytesIO()
+        cover.convert('L').save(cover_fs, format="JPEG", quality=95, optimize=True)
+
+    cover_filename = 'images/cover.jpg'
+    book.set_cover(cover_filename, cover_fs.getvalue())
 
     pages = []
 

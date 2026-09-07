@@ -3,6 +3,7 @@ var/
 env/
 .env
 *.log
+kindlegen
 
 # python
 .venv/
