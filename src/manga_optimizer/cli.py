@@ -81,8 +81,6 @@ def parse_writing_mode(value: str) -> str:
     # Input "horizontal-lr" - key not found, so returns the fallback "horizontal-lr"
     return WRITING_MODE_ALIASES.get(value, value)
 
-<<<<<<< Updated upstream
-=======
 
 def kindlegen_available() -> bool:
     from shutil import which
@@ -114,15 +112,12 @@ def validate_input_path(input_path: Path) -> int:
     return 1
 
 
->>>>>>> Stashed changes
 def main() -> int:
     print('Running the application')
 
     parser = build_parser()
     args = parser.parse_args()
 
-<<<<<<< Updated upstream
-=======
     if (
         not args.recursive and has_files(args.input_path) == False
         or args.input_path.is_file()
@@ -134,7 +129,6 @@ def main() -> int:
             "kindlegen is required. Install it and ensure it is on PATH."
         )
 
->>>>>>> Stashed changes
     app.main(args.input_path, args.output_path, args.formats, args.flow_direction, args.workers)
     
     return 0

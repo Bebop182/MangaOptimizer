@@ -27,12 +27,8 @@ def pngs_to_epub(
     # Use the first image as the cover.
     cover_path = image_paths[0]
     cover_filename = Path('images/cover').with_suffix(cover_path.suffix)
-    with Image.open(cover_path) as cover:
-        cover_fs = BytesIO()
-        cover.convert('L').save(cover_fs, format="JPEG", quality=95, optimize=True)
-        cover_filename = cover_filename.with_suffix('.jpg')
 
-    book.set_cover(cover_filename, cover_fs.getvalue())
+    book.set_cover(str(cover_filename), cover_path.read_bytes())
 
     pages = []
 
@@ -83,40 +79,18 @@ def bootstrap_epub(title: str, design_size: tuple[int, int],
     book.set_identifier(getBookIdentifier(title))
     book.set_title(title)
     book.set_language(lang)
-    
-    # <meta name="book-type" content="comic"/>
-    book.add_metadata(namespace=None, value=None,
-        name='meta', 
-        others={
-            'name': 'book-type',
-            'content': 'comic'
-        }
-    )
 
-    # <meta name='fixed-layout' content='true'/>
-    book.add_metadata(namespace=None, value=None,
-        name='meta', 
-        others={
-            'name': 'fixed-layout',
-            'content': 'true'
-        }
-    )
 
-    # <meta name='original-resolution' content='1024x600'/>
+    book.add_metadata(namespace="rendition", name="layout", value="pre-paginated")
+    book.add_metadata(namespace="rendition", name="spread", value="none")
+    book.add_metadata(namespace="rendition", name=orientation, value="portrait")
+
+    # Mobi requirement
     book.add_metadata(namespace=None, value=None,
         name='meta', 
         others={
             'name': 'originial-resolution',
             'content': f'{design_size[0]}x{design_size[1]}'
-        }
-    )
-
-    # <meta name='orientation-lock' content='portrait'/>
-    book.add_metadata(namespace=None, value=None,
-        name='meta', 
-        others={
-            'name': 'orientation-lock',
-            'content': f'{orientation}'
         }
     )
 
@@ -143,38 +117,11 @@ def get_page_template(
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title>Page {index}</title>
-  <meta name="viewport"
-        content="width={width},height={height}" />
-  <style type="text/css">
-    html,
-    body {{
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-    }}
-
-    body {{
-        position: relative;
-    }}
-
-    img {{
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: auto;
-        height: 100%;
-        object-fit: contain;
-        object-position: center;
-    }}
-  </style>
+  <meta name="viewport" content="width={width},height={height}" />
+  
 </head>
 <body>
-  <img
-    src="{image_filename}"
-    alt="Page {index}"
-  />
+  <img src="{image_filename}" alt="Page {index}" />
 </body>
 </html>
 '''

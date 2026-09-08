@@ -252,12 +252,26 @@ def main(
     output_dir: Path,
     formats: list[str],
     flow_direction: str,
-    worker_count: int
+    worker_count: int,
+    cover_path: Path = None
     ) -> None:
 
     image_paths = images_from_dir(input_dir)
+    
     with TemporaryDirectory(prefix='image-batch-') as temp_dir:
-        processed = process_batch(image_paths, processing_job, temp_dir)
+        temp_dir = Path(temp_dir)
+        
+        if 'mobi' in formats:
+            cover_path = image_paths[0]
+            image_paths = image_paths[1:]
+            with Image.open(cover_path) as cover:
+                cover = process_image(cover)
+                cover_path = (temp_dir / cover_path.stem).with_suffix('.jpg')
+                cover.convert('L').save(cover_path)
+
+        processed = process_batch(image_paths, processing_job, temp_dir, worker_count)
+        if cover_path != None:
+            processed.insert(0, cover_path)
         export_stem = output_dir / input_dir.name
 
         if 'cbz' in formats:
