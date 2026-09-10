@@ -40,7 +40,7 @@ def test_has_content():
 
 def test_images_from_dir():
     images = app.images_from_dir(TEST_BOOK)
-    assert len(images) == 5
+    assert len(images) == 7
 
 def test_process_batch():
     root = Path('path') / 'to' / 'images'

@@ -1,7 +1,11 @@
 import argparse
 import os
 from pathlib import Path
+from importlib.metadata import version
+
 from . import app
+
+DIST_NAME = 'manga-optimiser'
 
 DEFAULT_OUTPUT_PATH = Path('./var/output/')
 DEFAULT_FORMATS = ['cbz']
@@ -17,6 +21,11 @@ WRITING_MODE_ALIASES = {
 # alias don't need to be present, as choices will be matched against after parsing type
 WRITING_MODES = ('horizontal-lr', 'horizontal-rl')
 
+try:
+    __version__ = version(DIST_NAME)
+except:
+    __version__ = 'unknown'
+
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -27,6 +36,13 @@ def build_parser():
         'input_path',
         type=Path,
         help='Path to the image file'
+    )
+
+    parser.add_argument(
+        '-v',
+        '--version',
+        action='version',
+        version=f'%(prog)s {__version__}'
     )
 
     parser.add_argument(
@@ -84,10 +100,11 @@ def parse_writing_mode(value: str) -> str:
 
 def kindlegen_available() -> bool:
     from shutil import which
-    kindlegen_path = which("kindlegen")  # Searches PATH for the executable
-    if kindlegen_path is None:
-        return False
-    return True
+    kindlegen = os.getenv('KINDLEGEN')
+    if not kindlegen:
+        kindlegen = which("kindlegen")  # Searches PATH for the executable
+    return kindlegen != None
+
 
 
 def has_files(directory: Path) -> bool:
@@ -113,7 +130,7 @@ def validate_input_path(input_path: Path) -> int:
 
 
 def main() -> int:
-    print('Running the application')
+    print('Running the application v2')
 
     parser = build_parser()
     args = parser.parse_args()

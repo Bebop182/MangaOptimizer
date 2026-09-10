@@ -27,7 +27,7 @@ def main() -> None:
         VENV / 'pyinstaller',
         '--onefile',
         '--paths', ROOT / 'src',
-        '--name', APP_NAME,
+        '--name', APP_NAME.replace('_', '-'),
         ENTRY_POINT
     ]
     run(pyinstaller)

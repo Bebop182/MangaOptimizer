@@ -7,13 +7,15 @@ ROOT = Path(__file__).resolve().parents[1]
 DIRECTORIES_TO_REMOVE = (
     ROOT / 'build',
     ROOT / 'dist',
-    ROOT / (MYAPP + '.egg-info'),
+    ROOT / 'src' / (MYAPP + '.egg-info'),
     ROOT / 'src' / MYAPP / '__pycache__',
     ROOT / 'src' / MYAPP / 'export' / '__pycache__',
+    ROOT / '.pytest_cache',
+    ROOT / 'tests' / 'unit' / '__pycache__',
 )
 
 FILES_TO_REMOVE = (
-    ROOT / (MYAPP + '.spec'),
+    ROOT / (MYAPP.replace('_', '-') + '.spec'),
 )
 
 def remove(path: Path) -> None:

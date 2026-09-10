@@ -229,8 +229,8 @@ def exportEPUB(images: list[Path], file_path: Path, flow_direction: str = 'horiz
 
 
 def exportMOBI(epub: Path):
-    from .export.moby import epub_to_mobi
-    return epub_to_mobi(Path)
+    from .export.mobi import epub_to_mobi
+    return epub_to_mobi(epub)
 
 
 def exportPDF(images: list[Path], file_path: Path):
@@ -261,35 +261,35 @@ def main(
     with TemporaryDirectory(prefix='image-batch-') as temp_dir:
         temp_dir = Path(temp_dir)
         
-        if 'mobi' in formats:
+        if True:
+        # if 'mobi' in formats:
             cover_path = image_paths[0]
             image_paths = image_paths[1:]
             with Image.open(cover_path) as cover:
                 cover = process_image(cover)
                 cover_path = (temp_dir / cover_path.stem).with_suffix('.jpg')
-                cover.convert('L').save(cover_path)
+                cover.convert('L').save(cover_path, dpi=(167, 167))
 
         processed = process_batch(image_paths, processing_job, temp_dir, worker_count)
         if cover_path != None:
             processed.insert(0, cover_path)
-        export_stem = output_dir / input_dir.name
+        export_path = output_dir / input_dir.name
 
         if 'cbz' in formats:
-            exportCBZ(processed, export_stem.with_suffix('.cbz'))
+            exportCBZ(processed, export_path.with_suffix('.cbz'))
 
         if 'pdf' in formats:
-            exportPDF(processed, export_stem.with_suffix('.pdf'))
+            exportPDF(processed, export_path.with_suffix('.pdf'))
 
         if 'epub' in formats or 'mobi' in formats:
-            epub_path = (export_stem if 'epub' in formats else temp_dir / input_dir.name).with_suffix('.epub')
+            epub_path = (export_path if 'epub' in formats else temp_dir / input_dir.name).with_suffix('.epub')
             exportEPUB(
                 processed, epub_path,
                 flow_direction=flow_direction
                 )
         
             if 'mobi' in formats:
-                exportMOBI(epub_path)
-
+                mobi_path = exportMOBI(epub_path)
                 if 'epub' not in formats:
-                    mobi_path = epub_path.with_suffix('.mobi')
-                    move(mobi_path, export_stem.with_suffix('.mobi'))
+                    move(mobi_path, export_path.with_suffix('.mobi'))
+                # print(mobi_path)
