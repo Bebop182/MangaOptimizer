@@ -1,0 +1,40 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:manga-optimizer:device:1",
+    "title": "Device",
+    "description": "eReader rendering characteristics",
+    "properties": {
+        "model": {
+            "description": "eReader commercial name: kindle basic 8th",
+            "type": "string"
+        },
+        "alias": {
+            "description": "Short name",
+            "type": "string"
+        },
+        "dpi": {
+            "description": "Black and white DPI",
+            "type": "integer",
+            "exclusiveMinimum": 0
+        },
+        "color-dpi": {
+            "description": "Color DPI",
+            "type": "integer",
+            "exclusiveMinimum": 0
+        },
+        "resolution": {
+            "description": "display resolution",
+            "type":"object",
+            "properties": {
+                "width": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                },
+                "height": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                }
+            }
+        }
+    }
+}

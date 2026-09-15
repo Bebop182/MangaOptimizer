@@ -1,0 +1,62 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:manga-optimizer:metadata:1",
+    "title": "metadata",
+    "description": "Metadata from an ebook",
+    "type": "object",
+    "$defs": {
+        "page": {
+            "type": "object",
+            "properties": {
+                "index": {
+                    "description": "Page number",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "title": {
+                    "description": "Page title",
+                    "type": "string"
+                },
+                "uri": {
+                    "description": "uri to the page content",
+                    "type": "string"
+                }
+            },
+            "required": ["index", "uri"]
+        }
+    },
+    "properties": {
+        "uid": {
+            "description": "Unique identifier, asin, isbn, etc...",
+            "type": "string"
+        },
+        "title": {
+            "description": "Name of the book",
+            "type": "string"
+        },
+        "cover": {
+            "description": "Cover art for the book",
+            "$ref": "page"
+        },
+        "pages": {
+            "description": "Pages of the book",
+            "type": "array",
+            "uniqueItems": true,
+            "minItems": 1,
+            "items": {
+                "$ref": "page"
+            }
+        },
+        "orientation": {
+            "description": "Display orientation of the book",
+            "type": "string",
+            "enum": ["landscape, portrait, auto"]
+        },
+        "writing-mode": {
+            "description": "Describe the writing direction",
+            "type": "string",
+            "enum": ["horizontal-lr", "horizontal-rl"]
+        }
+    },
+    "required": ["uid", "title", "cover", "pages"]
+}

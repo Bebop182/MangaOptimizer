@@ -9,6 +9,7 @@ from mobi_header import MobiHeader
 import hashlib
 import base64
 
+
 def make_id(seed: str) -> str:
     digest = hashlib.sha256(
         seed.strip().lower().encode("utf-8")
@@ -16,6 +17,7 @@ def make_id(seed: str) -> str:
 
     encoded = base64.b32encode(digest).decode("ascii")
     return 'B1' + str(encoded[:8])
+
 
 def epub_to_mobi(epub: Path):
     kindlegen = os.getenv('KINDLEGEN')
@@ -56,11 +58,12 @@ def epub_to_mobi(epub: Path):
         return mobi_path
     return None
 
+
 def set_exth(mobi_path: Path, metadatas: list[tuple[int, str]]):
     header = MobiHeader(mobi_path)
     for index, value in metadatas:
         header.add_exth_record(
-            index, 
-            value, 
+            index,
+            value,
             str)
     header.to_file()

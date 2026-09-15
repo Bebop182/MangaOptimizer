@@ -1,0 +1,186 @@
+/* EPUB 2/3 and Kindle-compatible CSS reset */
+/* Box sizing */
+html {
+  margin: 0;
+  padding: 0;
+}
+
+body,
+div,
+section,
+article,
+aside,
+header,
+footer,
+nav,
+main,
+figure,
+figcaption,
+p,
+blockquote,
+pre,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+ul,
+ol,
+li,
+dl,
+dt,
+dd,
+table,
+thead,
+tbody,
+tfoot,
+tr,
+th,
+td,
+img,
+a,
+em,
+strong,
+small,
+sub,
+sup,
+hr {
+  margin: 0;
+  padding: 0;
+}
+
+/* Base document */
+body {
+  background: transparent;
+  color: #000;
+  font-family: serif;
+  font-size: 1em;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1.4;
+  text-align: left;
+  text-indent: 0;
+}
+
+/* Headings */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: sans-serif;
+  font-style: normal;
+  font-weight: bold;
+  line-height: 1.2;
+  text-align: left;
+  text-indent: 0;
+}
+
+/* Paragraphs */
+p {
+  text-align: left;
+  text-indent: 1.5em;
+}
+
+p:first-child,
+h1 + p,
+h2 + p,
+h3 + p,
+h4 + p,
+h5 + p,
+h6 + p,
+blockquote + p,
+figure + p {
+  text-indent: 0;
+}
+
+/* Links */
+a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* Emphasis */
+em,
+i {
+  font-style: italic;
+}
+
+strong,
+b {
+  font-weight: bold;
+}
+
+/* Lists */
+ul,
+ol {
+  margin-left: 2em;
+}
+
+li {
+  margin: 0;
+  padding: 0;
+}
+
+/* Block quotes */
+blockquote {
+  margin: 1em 2em;
+  padding: 0;
+  font-style: italic;
+}
+
+/* Preformatted text */
+pre,
+code,
+kbd,
+samp {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+/* Images and figures */
+img {
+  border: 0;
+  width: auto;
+  height: auto;
+}
+
+figure {
+  text-align: center;
+}
+
+figcaption {
+  text-align: center;
+  font-size: 0.9em;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+}
+
+/* Rules */
+hr {
+  border: 0;
+  border-top: 1px solid #000;
+  height: 0;
+  margin: 1em 0;
+}
+
+/* Avoid forced page behavior from browser defaults */
+section,
+article,
+div {
+  page-break-before: auto;
+  page-break-after: auto;
+}
