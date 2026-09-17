@@ -2,12 +2,27 @@ from shutil import which
 from pathlib import Path
 import subprocess
 import struct
+import hashlib
+import base64
 import os
+
+from ..model.ebook import Ebook
+from ..model.device import Device
 
 from mobi_header import MobiHeader
 
-import hashlib
-import base64
+
+class MobiExporter:
+    suffix: str = '.mobi'
+
+    def export(self, book: Ebook, device: Device, destination: Path):
+        epub_path = destination
+        if destination.is_dir():
+            epub_path = (destination/book.title).with_suffix(".epub")
+        if epub_path.exists():
+            epub_to_mobi(book, epub_path)
+        else:
+            print(f"MobiExporter Error: Could not locate {epub_path}")
 
 
 def make_id(seed: str) -> str:
@@ -19,7 +34,7 @@ def make_id(seed: str) -> str:
     return 'B1' + str(encoded[:8])
 
 
-def epub_to_mobi(epub: Path):
+def epub_to_mobi(book: Ebook, epub: Path):
     kindlegen = os.getenv('KINDLEGEN')
     if not kindlegen:
         kindlegen = which("kindlegen")
@@ -48,10 +63,11 @@ def epub_to_mobi(epub: Path):
         print(result.stdout)
     except subprocess.CalledProcessError as error:
         print(f"kindlegen failed with exit code {error.returncode}")
+        print(error.stdout)
     else:
-        mobi_path = epub.with_suffix('.mobi')
+        mobi_path = epub.with_suffix(".mobi")
         metadatas = [
-            (113, make_id(mobi_path.stem)),
+            (113, book.uid),
             (501, "PDOC")
         ]
         set_exth(mobi_path, metadatas)

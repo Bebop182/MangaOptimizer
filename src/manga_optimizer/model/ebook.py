@@ -1,4 +1,6 @@
-from dataclasses import dataclass, field
+from __future__ import annotations
+
+from dataclasses import dataclass, field, replace
 import hashlib
 import base64
 
@@ -6,7 +8,7 @@ import base64
 @dataclass(frozen=True)
 class Page:
     uri: str
-    index: int
+    number: int
     title: str | None
 
 
@@ -28,7 +30,7 @@ class MobiDocType:
 
 @dataclass(frozen=True)
 class Ebook:
-    uid: str
+    uid: str = field(init=False)
     title: str
     cover: Page
     pages: list[Page]
@@ -36,12 +38,27 @@ class Ebook:
         default=Orientation.PORTRAIT, kw_only=True)
     writing_mode: WritingMode = field(
         default=WritingMode.HORIZONTAL_RL, kw_only=True)
+    language: str = "en"
 
-    def __init__(self, title: str, cover: Page, pages: list[Page]):
-        object.__setattr__(self, "title", title)
-        object.__setattr__(self, "cover", cover)
-        object.__setattr__(self, "pages", pages)
-        object.__setattr__(self, "uid", Ebook._make_id(title+f"{len(pages)}"))
+    def __post_init__(self):
+        object.__setattr__(self, "uid", Ebook._make_id(
+            self.title+f"{len(self.pages)}"))
+
+    @classmethod
+    def from_book(
+        cls,
+        book: Ebook,
+        *,
+        title: str | None = None,
+        cover: Page | None = None,
+        pages: list[Page] | None = None,
+    ) -> Ebook:
+        return replace(
+            book,
+            title=title if title is not None else book.title,
+            cover=cover if cover is not None else book.cover,
+            pages=pages if pages is not None else book.pages,
+        )
 
     @staticmethod
     def _make_id(seed: str) -> str:
@@ -50,16 +67,4 @@ class Ebook:
         ).digest()
 
         encoded = base64.b32encode(digest).decode("ascii")
-        return 'B1' + str(encoded[:8])
-
-
-@dataclass(frozen=True)
-class Mobi(Ebook):
-    asin: str
-    doctype: MobiDocType
-    original_size: tuple[int, int]
-
-    def __init__(self, doctype: MobiDocType, original_size: tuple[int, int]):
-        self.asin = self.uid
-        self.doctype = doctype
-        self.original_size = original_size
+        return "B1" + str(encoded[:8])

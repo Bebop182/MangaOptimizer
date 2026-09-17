@@ -1,15 +1,19 @@
-import argparse
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from zipfile import ZIP_DEFLATED, ZipFile
+from tempfile import TemporaryDirectory
 from collections.abc import Callable
+from pathlib import Path
 from shutil import move
+import argparse
+
+from .export.epub import EpubExporter
+from .export.mobi import MobiExporter
+from .model import ebook
+from .model.device import Device
 
 from PIL import Image
 import numpy as np
-from .export.epub import pngs_to_epub
-# from rainbowEffectEraser import erase_rainbow_artifacts
+
 
 # DISPLAY_RES = (1072, 1448) #Kobo Clara Color
 DISPLAY_RES = (600, 800)  # Kindle 8th Basic
@@ -152,6 +156,14 @@ def is_landscape(image: Image.Image) -> bool:
     return False
 
 
+def image_export(image: Image.Image, output_path: Path) -> Path:
+    if output_path.suffix == '.png':
+        image.save(output_path, optimize=True)
+    else:
+        image.convert('L').save(output_path, quality=80, optimize=True)
+    return output_path
+
+
 def process_image(image: Image.Image) -> Image.Image:
     if image.mode != 'L':
         image = image.convert('L')
@@ -173,15 +185,7 @@ def process_image(image: Image.Image) -> Image.Image:
     return image
 
 
-def image_export(image: Image.Image, output_path: Path) -> Path:
-    if output_path.suffix == '.png':
-        image.save(output_path, optimize=True)
-    else:
-        image.convert('L').save(output_path, quality=80, optimize=True)
-    return output_path
-
-
-def processing_job(input_path: Path, output_path: Path) -> list[Path]:
+def image_worker(input_path: Path, output_path: Path) -> list[Path]:
     if input_path.suffix not in SUPPORTED_IMAGES:
         raise NotImplementedError(
             f'File type not supported: {input_path.suffix}')
@@ -251,6 +255,41 @@ def exportPDF(images: list[Path], file_path: Path):
     print(file_path)
 
 
+def process_ebook(book: ebook.Ebook, workspace: Path, worker_count: int) -> ebook.Ebook:
+    # Processing
+    # if 'mobi' in formats:
+    cover_path = book.cover.uri
+
+    processed_cover = None
+    with Image.open(cover_path) as cover:
+        cover = process_image(cover)
+        cover_path = (workspace / "cover").with_suffix('.jpg')
+        cover.convert('L').save(cover_path, dpi=(167, 167))
+        processed_cover = ebook.Page(
+            uri=cover_path,
+            number=0,
+            title=book.cover.title
+        )
+    image_paths = [
+        page.uri
+        for page in book.pages
+    ]
+    processed = process_batch(
+        image_paths, image_worker, workspace, worker_count)
+    # if cover_path != None:
+    #     processed.insert(0, cover_path)
+    processed_pages = [
+        ebook.Page(
+            uri=path,
+            number=index+1,
+            title=book.pages[index].title
+        )
+        for index, path in enumerate(processed)
+    ]
+
+    return ebook.Ebook.from_book(book, cover=processed_cover, pages=processed_pages)
+
+
 def main(
     input_dir: Path,
     output_dir: Path,
@@ -263,75 +302,55 @@ def main(
     # Construct ebook:
     from manga_optimizer.model import ebook
 
-    # book = ebook.Ebook(
-    #     uid=None,
-    #     title=None,
-    #     cover=None,
-    #     pages=[],
-    # )
-
-    # title = input dir name
-    # cover = first page
-
     image_paths = images_from_dir(input_dir)
     cover = ebook.Page(
         uri=image_paths[0],
-        index=0,
+        number=0,
         title="cover"
     )
     pages = [
         ebook.Page(
             uri=path,
-            title=f'Page {index:03d}',
-            index=index
+            title=f'Page {number:03d}',
+            number=number
         )
-        for index, path in enumerate(image_paths[1:])
+        for number, path in enumerate(image_paths[1:], start=1)
     ]
     book = ebook.Ebook(
         title=input_dir.stem,
         cover=cover,
         pages=pages
     )
+
     with TemporaryDirectory(prefix='image-batch-') as temp_dir:
         temp_dir = Path(temp_dir)
 
-        # Processing
-        if True:
-            # if 'mobi' in formats:
-            cover_path = book.cover.uri
-            image_paths = [
-                page.uri
-                for page in book.pages
-            ]
-            with Image.open(cover_path) as cover:
-                cover = process_image(cover)
-                cover_path = (temp_dir / cover_path.stem).with_suffix('.jpg')
-                cover.convert('L').save(cover_path, dpi=(167, 167))
-
-        processed = process_batch(
-            image_paths, processing_job, temp_dir, worker_count)
-        if cover_path != None:
-            processed.insert(0, cover_path)
+        processed_book = process_ebook(book, temp_dir, worker_count)
 
         # Export
-        export_path = output_dir / input_dir.name
 
-        if 'cbz' in formats:
-            exportCBZ(processed, export_path.with_suffix('.cbz'))
+        device = Device(
+            alias="k8", model="Kindle Basic 8th Gen", dpi=167, resolution=(600, 800)
+        )
+        EpubExporter().export(processed_book, device, output_dir)
+        MobiExporter().export(processed_book, device, output_dir)
 
-        if 'pdf' in formats:
-            exportPDF(processed, export_path.with_suffix('.pdf'))
+        # if 'cbz' in formats:
+        #     exportCBZ(processed, export_path.with_suffix('.cbz'))
 
-        if 'epub' in formats or 'mobi' in formats:
-            epub_path = (export_path if 'epub' in formats else temp_dir /
-                         input_dir.name).with_suffix('.epub')
-            exportEPUB(
-                processed, epub_path,
-                flow_direction=flow_direction
-            )
+        # if 'pdf' in formats:
+        #     exportPDF(processed, export_path.with_suffix('.pdf'))
 
-            if 'mobi' in formats:
-                mobi_path = exportMOBI(epub_path)
-                if 'epub' not in formats:
-                    move(mobi_path, export_path.with_suffix('.mobi'))
-                # print(mobi_path)
+        # if 'epub' in formats or 'mobi' in formats:
+        #     epub_path = (export_path if 'epub' in formats else temp_dir /
+        #                  input_dir.name).with_suffix('.epub')
+        #     exportEPUB(
+        #         processed, epub_path,
+        #         flow_direction=flow_direction
+        #     )
+
+        #     if 'mobi' in formats:
+        #         mobi_path = exportMOBI(epub_path)
+        #         if 'epub' not in formats:
+        #             move(mobi_path, export_path.with_suffix('.mobi'))
+        # print(mobi_path)

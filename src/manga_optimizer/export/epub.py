@@ -1,39 +1,55 @@
 from collections.abc import Iterable
+from importlib.resources import files
 from pathlib import Path
 from uuid import uuid4
 from io import BytesIO
-from importlib.resources import files
 from string import Template
 from html import escape
+
+from ..model.ebook import Ebook
+from ..model.device import Device
 
 from PIL import Image
 from ebooklib import epub
 
 
+class EpubExporter:
+    suffix: str = '.epub'
+
+    def export(self, book: Ebook, device: Device, destination: Path):
+        image_paths = [
+            page.uri
+            for page in book.pages
+        ]
+
+        pngs_to_epub(
+            book,
+            device,
+            filepath=destination/(book.title+self.suffix)
+        )
+
+
 def pngs_to_epub(
-    image_paths: Iterable[Path],
-    output_path: Path,
-    design_size: tuple[int, int],
-    *,
-    lang: str = 'en',
-    writing_mode: str = 'horizontal-rl',
-    orientation: str = 'portrait'
+    book: Ebook,
+    device: Device,
+    filepath: Path,
 ) -> None:
+
+    image_paths = [
+        page.uri
+        for page in book.pages
+    ]
 
     if not image_paths:
         raise ValueError('No PNG files found')
 
-    width, height = design_size
-    title = output_path.stem
+    width, height = device.resolution
 
-    book = bootstrap_epub(title, design_size, lang, writing_mode, orientation)
-
-    # Use the first image as the cover.
-    cover_path = image_paths[0]
-    cover_filename = Path('images/cover').with_suffix('.jpg')
-
-    book.set_cover(str(cover_filename),
-                   cover_path.read_bytes(), create_page=True)
+    epubBook = bootstrap_epub(book.uid, book.title, device.resolution, book.language,
+                              book.writing_mode, book.orientation)
+    cover_suffix = Path(book.cover.uri).suffix
+    epubBook.set_cover(book.cover.title+cover_suffix,
+                       book.cover.uri.read_bytes(), create_page=True)
     pages = []
 
     reset = epub.EpubItem(
@@ -42,7 +58,7 @@ def pngs_to_epub(
         media_type='text/css',
         content=loadCSSReset()
     )
-    book.add_item(reset)
+    epubBook.add_item(reset)
 
     style = epub.EpubItem(
         uid='page_style',
@@ -50,23 +66,25 @@ def pngs_to_epub(
         media_type='text/css',
         content=loadPageStyle()
     )
-    book.add_item(style)
+    epubBook.add_item(style)
 
-    for index, image_path in enumerate(image_paths[1:], start=1):
-        image_filename = f'images/page_{index}{image_path.suffix}'
-        page_filename = f'page_{index}.xhtml'
+    lang = book.language
+    width, height = device.resolution
+    for image_page in book.pages:
+        image_filename = f'images/{image_page.title}{image_page.uri.suffix}'
+        page_filename = f'{image_page.title}.xhtml'
 
         image = epub.EpubItem(
-            uid=f'image_{index}',
+            uid=f'image_{image_page.number}',
             file_name=image_filename,
             media_type='image/png',
-            content=image_path.read_bytes(),
+            content=image_page.uri.read_bytes(),
         )
-        book.add_item(image)
+        epubBook.add_item(image)
 
         page = epub.EpubHtml(
-            uid=f'page_{index}',
-            title=f'Page {index}',
+            uid=image_page.title,
+            title=image_page.title,
             file_name=page_filename,
             lang=lang,
         )
@@ -85,36 +103,33 @@ def pngs_to_epub(
             type='text/css',
         )
         page.set_content(load_page_template(
-            index, image_filename, width, height))
-        # page.content = get_page_template(index, image_filename, width, height)
+            image_page.number, image_filename, width, height))
 
-        book.add_item(page)
+        epubBook.add_item(page)
         pages.append(page)
 
-    book.spine = pages
+    epubBook.spine = pages
 
-    book.add_item(epub.EpubNav())
-    book.add_item(epub.EpubNcx())
+    epubBook.add_item(epub.EpubNav())
+    epubBook.add_item(epub.EpubNcx())
 
-    book.toc = tuple(
-        epub.Link(page.file_name, page.title, f'page_{i}')
-        for i, page in enumerate(pages, start=1)
+    epubBook.toc = tuple(
+        epub.Link(page.file_name, page.title, page.id)
+        for page in pages
     )
 
-    epub.write_epub(output_path, book)
+    print(f'EPUB EXPORT TO: {filepath}')
+
+    epub.write_epub(filepath, epubBook)
 
 
-def getBookIdentifier(title: str):
-    return f'urn:uuid:{uuid4()}'
-
-
-def bootstrap_epub(title: str, design_size: tuple[int, int],
-                   lang: str = 'en',
-                   writing_mode: str = 'lr',
-                   orientation: str = 'portrait'
+def bootstrap_epub(uid: str, title: str, design_size: tuple[int, int],
+                   lang: str,
+                   writing_mode: str,
+                   orientation: str,
                    ):
     book = epub.EpubBook()
-    book.set_identifier(getBookIdentifier(title))
+    book.set_identifier(uid)
     book.set_title(title)
     book.set_language(lang)
 
@@ -125,11 +140,12 @@ def bootstrap_epub(title: str, design_size: tuple[int, int],
                       name="orientation", value=orientation)
 
     # Mobi requirement
+    width, height = design_size
     book.add_metadata(namespace=None, value=None,
                       name='meta',
                       others={
                           'name': 'original-resolution',
-                          'content': f'{design_size[0]}x{design_size[1]}'
+                          'content': f'{width}x{height}'
                       }
                       )
 
@@ -148,7 +164,7 @@ def bootstrap_epub(title: str, design_size: tuple[int, int],
 
 
 def load_page_template(
-    index: int,
+    number: int,
     image_filename: str,
     width: int,
     height: int,
@@ -159,7 +175,7 @@ def load_page_template(
     )
 
     html = template.substitute(
-        index=escape(str(index)),
+        number=escape(str(number)),
         filename=escape(str(image_filename), quote=True),
     )
     return html
