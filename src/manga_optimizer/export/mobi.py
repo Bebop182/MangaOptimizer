@@ -9,20 +9,23 @@ import os
 from ..model.ebook import Ebook
 from ..model.device import Device
 
-from mobi_header import MobiHeader
-
 
 class MobiExporter:
     suffix: str = '.mobi'
 
-    def export(self, book: Ebook, device: Device, destination: Path):
+    def export(self, book: Ebook, device: Device, destination: Path) -> Path:
         epub_path = destination
+        mobi_path = None
         if destination.is_dir():
             epub_path = (destination/book.title).with_suffix(".epub")
-        if epub_path.exists():
-            epub_to_mobi(book, epub_path)
-        else:
-            print(f"MobiExporter Error: Could not locate {epub_path}")
+        if not epub_path.is_file():
+            print(
+                f"MobiExporter Error: Could not locate {epub_path} Is file?{epub_path.is_file()}")
+            return None
+
+        mobi_path = epub_to_mobi(book, epub_path)
+        print(mobi_path)
+        return mobi_path
 
 
 def make_id(seed: str) -> str:
@@ -46,7 +49,7 @@ def epub_to_mobi(book: Ebook, epub: Path):
     # kindlegen_cmd = [
     #     kindlegen,
     #     epub,
-    #     '-dont_append-source',
+    #     "-dont_append_source",
     # ]
     kindlegen_cmd = f'{kindlegen} "{epub}" -dont_append_source'
 
@@ -66,20 +69,11 @@ def epub_to_mobi(book: Ebook, epub: Path):
         print(error.stdout)
     else:
         mobi_path = epub.with_suffix(".mobi")
-        metadatas = [
-            (113, book.uid),
-            (501, "PDOC")
-        ]
-        set_exth(mobi_path, metadatas)
+        # metadatas = [
+        #     (113, book.uid),
+        #     (501, "PDOC")
+        # ]
+        # # set_exth(mobi_path, metadatas)
+        # print_exth(mobi_path)
         return mobi_path
     return None
-
-
-def set_exth(mobi_path: Path, metadatas: list[tuple[int, str]]):
-    header = MobiHeader(mobi_path)
-    for index, value in metadatas:
-        header.add_exth_record(
-            index,
-            value,
-            str)
-    header.to_file()

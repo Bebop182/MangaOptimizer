@@ -2,10 +2,11 @@ import argparse
 import os
 from pathlib import Path
 from importlib.metadata import version
+import sys
 
 from . import app
 
-DIST_NAME = 'manga-optimiser'
+DIST_NAME = 'manga-optimizer'
 
 DEFAULT_OUTPUT_PATH = Path('./var/output/')
 DEFAULT_FORMATS = ['cbz']
@@ -17,6 +18,8 @@ WRITING_MODE_ALIASES = {
     'lr': 'horizontal-lr',
     'rl': 'horizontal-rl',
 }
+
+__version__ = version(DIST_NAME)
 
 # alias don't need to be present, as choices will be matched against after parsing type
 WRITING_MODES = ('horizontal-lr', 'horizontal-rl')
@@ -159,10 +162,10 @@ def has_files(directory: Path) -> bool:
 
 
 def main() -> int:
-    print('Running the application v2')
-
     parser = build_parser()
     args = parser.parse_args()
+
+    print(f"Running {DIST_NAME} {__version__}...")
 
     # formats: kindlegen available for mobi
     if 'mobi' in args.formats and not kindlegen_available():

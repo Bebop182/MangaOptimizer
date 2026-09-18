@@ -327,30 +327,15 @@ def main(
 
         processed_book = process_ebook(book, temp_dir, worker_count)
 
-        # Export
-
         device = Device(
             alias="k8", model="Kindle Basic 8th Gen", dpi=167, resolution=(600, 800)
         )
-        EpubExporter().export(processed_book, device, output_dir)
-        MobiExporter().export(processed_book, device, output_dir)
 
-        # if 'cbz' in formats:
-        #     exportCBZ(processed, export_path.with_suffix('.cbz'))
+        if 'epub' in formats or 'mobi' in formats:
+            destination = output_dir if 'epub' in formats else temp_dir
+            epub_path = EpubExporter().export(processed_book, device, destination)
 
-        # if 'pdf' in formats:
-        #     exportPDF(processed, export_path.with_suffix('.pdf'))
-
-        # if 'epub' in formats or 'mobi' in formats:
-        #     epub_path = (export_path if 'epub' in formats else temp_dir /
-        #                  input_dir.name).with_suffix('.epub')
-        #     exportEPUB(
-        #         processed, epub_path,
-        #         flow_direction=flow_direction
-        #     )
-
-        #     if 'mobi' in formats:
-        #         mobi_path = exportMOBI(epub_path)
-        #         if 'epub' not in formats:
-        #             move(mobi_path, export_path.with_suffix('.mobi'))
-        # print(mobi_path)
+            if 'mobi' in formats:
+                mobi_path = MobiExporter().export(processed_book, device, epub_path)
+                if 'epub' not in formats:
+                    move(mobi_path, output_dir.joinpath(mobi_path.name))

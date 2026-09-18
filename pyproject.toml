@@ -1,6 +1,6 @@
 [project]
 name = "manga-optimizer"
-version = "0.1.0"
+version = "0.1.2"
 description = "Optimize manga files for e-readers"
 readme = "README.md"
 license-files = ["LICENSE"]
@@ -14,11 +14,7 @@ dependencies = [
     "numpy==2.5.2",
     "pillow==12.3.0",
     "six==1.17.0",
-    "mobi-header==0.0.4"
 ]
-
-[project.scripts]
-manga-optimizer = "manga_optimizer.cli:main"
 
 [project.optional-dependencies]
 build = [
@@ -30,5 +26,16 @@ test = [
     "pytest-cov"
 ]
 
+[project.scripts]
+manga-optimizer = "manga_optimizer.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"manga_optimizer" = ["export/page_template.xhtml"]

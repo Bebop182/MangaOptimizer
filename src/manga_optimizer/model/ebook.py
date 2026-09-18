@@ -67,4 +67,4 @@ class Ebook:
         ).digest()
 
         encoded = base64.b32encode(digest).decode("ascii")
-        return "B1" + str(encoded[:8])
+        return "A1" + str(encoded[:8])

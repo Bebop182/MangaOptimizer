@@ -5,15 +5,14 @@ html,body {
     padding: 0;
     overflow: hidden;
 }
-body {
+body{
     position: relative;
 }
 img {
-    position: absolute;
-    top: 0;
-    left: 0;
     height: 100%;
     width: auto;
-    object-fit: contain;
-    object-position: center;
+    margin: 0;
+    padding: 0;
+    /* object-fit: contain; */
+    /* object-position: center; */
 }
