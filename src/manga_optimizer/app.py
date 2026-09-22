@@ -8,6 +8,7 @@ import argparse
 
 from .export.epub import EpubExporter
 from .export.mobi import MobiExporter
+from .export.cbz import CBZExporter
 from .model import ebook
 from .model.device import Device
 
@@ -330,6 +331,9 @@ def main(
         device = Device(
             alias="k8", model="Kindle Basic 8th Gen", dpi=167, resolution=(600, 800)
         )
+
+        if 'cbz' in formats:
+            CBZExporter().export(processed_book, device, output_dir)
 
         if 'epub' in formats or 'mobi' in formats:
             destination = output_dir if 'epub' in formats else temp_dir

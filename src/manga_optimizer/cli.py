@@ -1,28 +1,18 @@
+from importlib.metadata import version
+from pathlib import Path
 import argparse
 import os
-from pathlib import Path
-from importlib.metadata import version
 import sys
 
-from . import app
-
-DIST_NAME = 'manga-optimizer'
+from manga_optimizer import app
+from manga_optimizer.constants import DIST_NAME, WRITING_MODES, WRITING_MODE_ALIASES
 
 DEFAULT_OUTPUT_PATH = Path('./var/output/')
 DEFAULT_FORMATS = ['cbz']
 DEFAULT_FLOW_DIRECTION = 'horizontal-rl'
 DEFAULT_WORKERS = 4
 CORES = os.cpu_count()
-
-WRITING_MODE_ALIASES = {
-    'lr': 'horizontal-lr',
-    'rl': 'horizontal-rl',
-}
-
 __version__ = version(DIST_NAME)
-
-# alias don't need to be present, as choices will be matched against after parsing type
-WRITING_MODES = ('horizontal-lr', 'horizontal-rl')
 
 
 def validate_input_path(input_value: str) -> Path:
