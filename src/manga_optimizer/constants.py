@@ -5,3 +5,5 @@ WRITING_MODE_ALIASES = {
     'lr': 'horizontal-lr',
     'rl': 'horizontal-rl',
 }
+SUPPORTED_IMAGES = {'.png', '.jpg', '.jpeg', '.webp'}
+OUTPUT_FORMATS = ('cbz', 'epub', 'mobi', 'pdf')

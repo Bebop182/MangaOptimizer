@@ -9,19 +9,19 @@ import argparse
 from .export.epub import EpubExporter
 from .export.mobi import MobiExporter
 from .export.cbz import CBZExporter
-from .model import ebook
+from .model.ebook import Ebook, Page
 from .model.device import Device
+from .constants import SUPPORTED_IMAGES
 
 from PIL import Image
 import numpy as np
 
-
 # DISPLAY_RES = (1072, 1448) #Kobo Clara Color
+DEVICE_NAME = "Kindle Basic 8th Gen"
+DEVICE_SHORT = "k8"
 DISPLAY_RES = (600, 800)  # Kindle 8th Basic
 DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
-SUPPORTED_IMAGES = {'.png', '.jpg', '.jpeg', '.webp'}
-FLOW_DIRECTION = ('lr', 'rl')
-OUTPUT_FORMATS = ('cbz', 'epub', 'mobi', 'pdf')
+DISPLAY_DPI = 167
 
 
 def simple_crop(
@@ -141,15 +141,6 @@ def has_content(image, threshold=12, min_fraction=0.001) -> bool:
     return np.count_nonzero(content) / content.size >= min_fraction
 
 
-def images_from_dir(directory: Path) -> list[Path]:
-    image_paths = [
-        image_path
-        for image_path in directory.iterdir()
-        if image_path.is_file() and image_path.suffix.lower() in SUPPORTED_IMAGES
-    ]
-    return sorted(image_paths, key=lambda path: path.stem)
-
-
 def is_landscape(image: Image.Image) -> bool:
     image_ratio = image.size[0] / image.size[1]
     if image_ratio > 1:
@@ -225,38 +216,7 @@ def process_batch(
     return sorted(processed, key=lambda path: path.stem)
 
 
-def exportCBZ(images: list[Path], file_path: Path):
-    with ZipFile(file_path, 'w', compression=ZIP_DEFLATED) as archive:
-        for image in images:
-            archive.write(image)
-    print(file_path)
-
-
-def exportEPUB(images: list[Path], file_path: Path, flow_direction: str = 'horizontal-rl'):
-    pngs_to_epub(images, file_path, DISPLAY_RES, writing_mode=flow_direction)
-    print(file_path)
-
-
-def exportMOBI(epub: Path):
-    from .export.mobi import epub_to_mobi
-    return epub_to_mobi(epub)
-
-
-def exportPDF(images: list[Path], file_path: Path):
-    pages = [
-        Image.open(path)
-        for path in sorted(images)
-    ]
-
-    pages[0].save(
-        file_path,
-        append_images=pages[1:],
-        resolution=167,
-    )
-    print(file_path)
-
-
-def process_ebook(book: ebook.Ebook, workspace: Path, worker_count: int) -> ebook.Ebook:
+def process_ebook(book: Ebook, workspace: Path, worker_count: int) -> Ebook:
     # Processing
     # if 'mobi' in formats:
     cover_path = book.cover.uri
@@ -265,8 +225,8 @@ def process_ebook(book: ebook.Ebook, workspace: Path, worker_count: int) -> eboo
     with Image.open(cover_path) as cover:
         cover = process_image(cover)
         cover_path = (workspace / "cover").with_suffix('.jpg')
-        cover.convert('L').save(cover_path, dpi=(167, 167))
-        processed_cover = ebook.Page(
+        cover.convert('L').save(cover_path)
+        processed_cover = Page(
             uri=cover_path,
             number=0,
             title=book.cover.title
@@ -277,10 +237,9 @@ def process_ebook(book: ebook.Ebook, workspace: Path, worker_count: int) -> eboo
     ]
     processed = process_batch(
         image_paths, image_worker, workspace, worker_count)
-    # if cover_path != None:
-    #     processed.insert(0, cover_path)
+
     processed_pages = [
-        ebook.Page(
+        Page(
             uri=path,
             number=index+1,
             title=book.pages[index].title
@@ -288,49 +247,21 @@ def process_ebook(book: ebook.Ebook, workspace: Path, worker_count: int) -> eboo
         for index, path in enumerate(processed)
     ]
 
-    return ebook.Ebook.from_book(book, cover=processed_cover, pages=processed_pages)
+    return Ebook.from_book(book, cover=processed_cover, pages=processed_pages)
 
 
 def main(
-    input_dir: Path,
+    book: Ebook,
+    device: Device,
     output_dir: Path,
     formats: list[str],
-    flow_direction: str,
-    worker_count: int,
-    cover_path: Path = None
+    worker_count: int
 ) -> None:
-
-    # Construct ebook:
-    from manga_optimizer.model import ebook
-
-    image_paths = images_from_dir(input_dir)
-    cover = ebook.Page(
-        uri=image_paths[0],
-        number=0,
-        title="cover"
-    )
-    pages = [
-        ebook.Page(
-            uri=path,
-            title=f'Page {number:03d}',
-            number=number
-        )
-        for number, path in enumerate(image_paths[1:], start=1)
-    ]
-    book = ebook.Ebook(
-        title=input_dir.stem,
-        cover=cover,
-        pages=pages
-    )
 
     with TemporaryDirectory(prefix='image-batch-') as temp_dir:
         temp_dir = Path(temp_dir)
 
         processed_book = process_ebook(book, temp_dir, worker_count)
-
-        device = Device(
-            alias="k8", model="Kindle Basic 8th Gen", dpi=167, resolution=(600, 800)
-        )
 
         if 'cbz' in formats:
             CBZExporter().export(processed_book, device, output_dir)

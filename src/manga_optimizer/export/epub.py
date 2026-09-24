@@ -1,16 +1,18 @@
 from collections.abc import Iterable
-from importlib.resources import files
 from pathlib import Path
 from uuid import uuid4
 from io import BytesIO
 from string import Template
 from html import escape
+from importlib import resources
 
 from ..model.ebook import Ebook
 from ..model.device import Device
 
 from PIL import Image
 from ebooklib import epub
+
+RESOURCES_PATH = resources.files("manga_optimizer") / "resources"
 
 
 class EpubExporter:
@@ -111,6 +113,8 @@ def pngs_to_epub(
         pages.append(page)
 
     document.spine = pages
+    # direction: Options are "ltr", "rtl" and "default"
+    # document.direction =
 
     document.add_item(epub.EpubNav())
     document.add_item(epub.EpubNcx())
@@ -162,7 +166,7 @@ def load_page_template(
     width: int,
     height: int,
 ) -> str:
-    template_path = files("manga_optimizer") / "export" / "page_template.xhtml"
+    template_path = RESOURCES_PATH / "page_template.xhtml"
     template = Template(
         template_path.read_text(encoding="utf-8")
     )
@@ -175,10 +179,10 @@ def load_page_template(
 
 
 def loadPageStyle():
-    style_path = files("manga_optimizer") / "export" / "page.css"
+    style_path = RESOURCES_PATH / "page.css"
     return style_path.read_text(encoding="utf-8")
 
 
 def loadCSSReset():
-    style_path = files("manga_optimizer") / "export" / "reset.css"
+    style_path = RESOURCES_PATH / "reset.css"
     return style_path.read_text(encoding="utf-8")

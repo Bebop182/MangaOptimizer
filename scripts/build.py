@@ -28,8 +28,7 @@ def main() -> None:
         raise FileNotFoundError(f"Entry point not found: {ENTRY_POINT}")
 
     appname = PACKAGE_NAME.replace("_", "-")
-
-    template_source = APP / "export" / "page_template.xhtml"
+    resources_path = APP / "resources"
 
     # run pyinstaller
     pyinstaller = [
@@ -39,7 +38,7 @@ def main() -> None:
         "--paths", ROOT / "src",
         "--name", appname,
         "--copy-metadata", appname,
-        "--add-data", f"{template_source}{os.pathsep}{PACKAGE_NAME}/export",
+        "--add-data", f'{APP}/resources{os.pathsep}{PACKAGE_NAME}/resources',
         ENTRY_POINT
     ]
     run(pyinstaller)

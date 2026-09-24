@@ -4,13 +4,23 @@ import argparse
 import os
 import sys
 
-from manga_optimizer import app
-from manga_optimizer.constants import DIST_NAME, WRITING_MODES, WRITING_MODE_ALIASES
+from manga_optimizer.app import main as appmain
+from manga_optimizer.model.ebook import Ebook, Page
+from manga_optimizer.model.device import Device
+from manga_optimizer.constants import DIST_NAME, WRITING_MODES, WRITING_MODE_ALIASES, SUPPORTED_IMAGES, OUTPUT_FORMATS
 
 DEFAULT_OUTPUT_PATH = Path('./var/output/')
 DEFAULT_FORMATS = ['cbz']
 DEFAULT_FLOW_DIRECTION = 'horizontal-rl'
 DEFAULT_WORKERS = 4
+
+# DISPLAY_RES = (1072, 1448) #Kobo Clara Color
+DEVICE_NAME = "Kindle Basic 8th Gen"
+DEVICE_SHORT = "k8"
+DISPLAY_RES = (600, 800)  # Kindle 8th Basic
+DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
+DISPLAY_DPI = 167
+
 CORES = os.cpu_count()
 __version__ = version(DIST_NAME)
 
@@ -27,7 +37,7 @@ def validate_input_path(input_value: str) -> Path:
             f'input path should be a directory of images: {input_path}')
 
     has_supported_file = any(
-        entry.is_file() and entry.suffix.lower() in app.SUPPORTED_IMAGES
+        entry.is_file() and entry.suffix.lower() in SUPPORTED_IMAGES
         for entry in input_path.iterdir()
     )
     if has_supported_file == False:
@@ -107,7 +117,7 @@ def build_parser():
     parser.add_argument(
         '-f',
         '--formats',
-        choices=app.OUTPUT_FORMATS,
+        choices=OUTPUT_FORMATS,
         type=str,
         nargs='+',
         default=DEFAULT_FORMATS,
@@ -151,6 +161,26 @@ def has_files(directory: Path) -> bool:
     return file_count >= 2
 
 
+def load_devices(path: Path) -> dict[str, Device]:
+    if not path.exists():
+        write_default_devices(path)
+
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    return {
+        short_name: Device.from_config(short_name, values)
+        for short_name, values in data["devices"].items()
+    }
+
+
+def images_from_dir(directory: Path) -> list[Path]:
+    image_paths = [
+        image_path
+        for image_path in directory.iterdir()
+        if image_path.is_file() and image_path.suffix.lower() in SUPPORTED_IMAGES
+    ]
+    return sorted(image_paths, key=lambda path: path.stem)
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -162,6 +192,38 @@ def main() -> int:
         raise RuntimeError(
             "kindlegen is required. Install it and ensure it is on PATH."
         )
+    input_dir = args.input_path
+    # Construct ebook:
+    image_paths = images_from_dir(input_dir)
+    cover = Page(
+        uri=image_paths[0],
+        number=0,
+        title="cover"
+    )
+    pages = [
+        Page(
+            uri=path,
+            title=f"Page {number:03d}",
+            number=number
+        )
+        for number, path in enumerate(image_paths[1:], start=1)
+    ]
+    book = Ebook(
+        title=input_dir.stem,
+        cover=cover,
+        pages=pages
+    )
 
-    app.main(args.input_path, args.output_path,
-             args.formats, args.flow_direction, args.workers)
+    # Load device parameter:
+    from pathlib import Path
+    from platformdirs import user_config_dir
+
+    config_dir = Path(user_config_dir("MangaOptimizer"))
+    devices_path = config_dir / "devices.toml"
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    device = Device(
+        alias=DEVICE_SHORT, model=DEVICE_NAME, dpi=DISPLAY_DPI, resolution=DISPLAY_RES
+    )
+
+    appmain(book, device, args.output_path, args.formats, args.workers)

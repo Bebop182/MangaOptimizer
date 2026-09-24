@@ -1,0 +1,14 @@
+[devices.k8]
+model = "Kindle basic 8th"
+format = "mobi"
+width = 600
+height = 800
+dpi = 167
+
+[devices.kcc]
+model = "Kobo Clara Colour"
+format = "cbz"
+width = 1072
+height = 1448
+dpi = 300
+color_dpi = 150
