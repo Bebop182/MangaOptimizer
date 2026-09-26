@@ -5,21 +5,29 @@ from dataclasses import dataclass, field
 class Device:
     alias: str
     model: str | None
+    format: str
     dpi: int
-    resolution: tuple[int, int]
+    width: int
+    height: int
     color_dpi: int | None = field(default=None)
-    color_resolution: tuple[int, int] | None = field(default=None)
+
+    @property
+    def resolution(self) -> tuple[int, int]:
+        return (self.width, self.height)
+
+    @property
+    def color_resolution(self) -> tuple[int, int] | None:
+        if self.color_dpi == None:
+            return None
+        ratio = int(self.color_dpi/self.dpi)
+        return (self.width * ratio, self.height*ratio)
 
     def __post_init__(self):
-        if not self.color_dpi:
-            return
-
-        ratio = self.color_dpi/self.dpi
-        color_resolution = (
-            self.resolution[0] * ratio,
-            self.resolution[1] * ratio
-        )
-        object.__setattr__(self, "color_resolution", color_resolution)
+        ...
 
     def has_color(self):
         return self.color_dpi is not None
+
+    @classmethod
+    def from_config(cls, short_name: str, values: dict) -> "Device":
+        return cls(alias=short_name, **values)

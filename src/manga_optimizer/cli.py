@@ -9,17 +9,17 @@ from manga_optimizer.model.ebook import Ebook, Page
 from manga_optimizer.model.device import Device
 from manga_optimizer.constants import DIST_NAME, WRITING_MODES, WRITING_MODE_ALIASES, SUPPORTED_IMAGES, OUTPUT_FORMATS
 
-DEFAULT_OUTPUT_PATH = Path('./var/output/')
-DEFAULT_FORMATS = ['cbz']
-DEFAULT_FLOW_DIRECTION = 'horizontal-rl'
+DEFAULT_OUTPUT_PATH = Path("./var/output/")
+DEFAULT_FORMATS = ["cbz"]
+DEFAULT_FLOW_DIRECTION = "horizontal-rl"
 DEFAULT_WORKERS = 4
 
 # DISPLAY_RES = (1072, 1448) #Kobo Clara Color
-DEVICE_NAME = "Kindle Basic 8th Gen"
-DEVICE_SHORT = "k8"
-DISPLAY_RES = (600, 800)  # Kindle 8th Basic
-DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
-DISPLAY_DPI = 167
+# DEVICE_NAME = "Kindle Basic 8th Gen"
+# DEVICE_SHORT = "k8"
+# DISPLAY_RES = (600, 800)  # Kindle 8th Basic
+# DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
+# DISPLAY_DPI = 167
 
 CORES = os.cpu_count()
 __version__ = version(DIST_NAME)
@@ -82,28 +82,35 @@ def get_version():
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description='Pack and process images from a folder to a CBZ/EPUB file optimized for e-readers like Kobo Clara Color'
+        description="Pack and process images from a folder to a CBZ/EPUB file optimized for e-readers like Kobo Clara Color"
     )
 
     parser.add_argument(
-        'input_path',
+        "input_path",
         type=validate_input_path,
-        help='Path to the image file'
+        help="Path to the image file"
     )
 
     parser.add_argument(
-        '-o',
-        '--output-path',
+        "-o",
+        "--output-path",
         type=validate_output_path,
         default=DEFAULT_OUTPUT_PATH,
-        help='Where to export the ebook'
+        help="Where to export the ebook"
     )
 
     parser.add_argument(
-        '-v',
-        '--version',
-        action='version',
+        "-v",
+        "--version",
+        action="version",
         version=f"%(prog)s {get_version()}"
+    )
+
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="k8",
+        help="Target device"
     )
 
     # parser.add_argument(
@@ -115,31 +122,31 @@ def build_parser():
     # )
 
     parser.add_argument(
-        '-f',
-        '--formats',
+        "-f",
+        "--formats",
         choices=OUTPUT_FORMATS,
         type=str,
-        nargs='+',
+        nargs="+",
         default=DEFAULT_FORMATS,
-        help='Output formats'
+        help="Output formats"
     )
 
     parser.add_argument(
-        '-d',
-        '--flow-direction',
+        "-d",
+        "--flow-direction",
         type=parse_writing_mode,
         default=DEFAULT_FLOW_DIRECTION,
         choices=WRITING_MODES,
-        help='Page turning direction (default: horizontal-rl)',
+        help="Page turning direction (default: horizontal-rl)",
     )
 
     parser.add_argument(
-        '-w',
-        '--workers',
+        "-w",
+        "--workers",
         type=int,
         default=DEFAULT_WORKERS,
         choices=range(1, CORES+1),
-        help='Number of parallel threads'
+        help="Number of parallel threads"
     )
     return parser
 
@@ -161,17 +168,6 @@ def has_files(directory: Path) -> bool:
     return file_count >= 2
 
 
-def load_devices(path: Path) -> dict[str, Device]:
-    if not path.exists():
-        write_default_devices(path)
-
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
-    return {
-        short_name: Device.from_config(short_name, values)
-        for short_name, values in data["devices"].items()
-    }
-
-
 def images_from_dir(directory: Path) -> list[Path]:
     image_paths = [
         image_path
@@ -181,20 +177,7 @@ def images_from_dir(directory: Path) -> list[Path]:
     return sorted(image_paths, key=lambda path: path.stem)
 
 
-def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
-
-    print(f"Running {DIST_NAME} {__version__}...")
-
-    # formats: kindlegen available for mobi
-    if 'mobi' in args.formats and not kindlegen_available():
-        raise RuntimeError(
-            "kindlegen is required. Install it and ensure it is on PATH."
-        )
-    input_dir = args.input_path
-    # Construct ebook:
-    image_paths = images_from_dir(input_dir)
+def hydrate_book(title: str, image_paths: list[Path]) -> Ebook:
     cover = Page(
         uri=image_paths[0],
         number=0,
@@ -209,21 +192,60 @@ def main() -> int:
         for number, path in enumerate(image_paths[1:], start=1)
     ]
     book = Ebook(
-        title=input_dir.stem,
+        title=title,
         cover=cover,
         pages=pages
     )
+    return book
 
+
+def load_device_configs() -> list[Device]:
     # Load device parameter:
-    from pathlib import Path
     from platformdirs import user_config_dir
+    from importlib import resources
+    import shutil
+    import tomllib
 
-    config_dir = Path(user_config_dir("MangaOptimizer"))
-    devices_path = config_dir / "devices.toml"
+    # user_config_dir provides a platform specific safe dir for config files
+    config_dir = Path(user_config_dir(DIST_NAME))
     config_dir.mkdir(parents=True, exist_ok=True)
+    config_path = config_dir / "devices.toml"
 
-    device = Device(
-        alias=DEVICE_SHORT, model=DEVICE_NAME, dpi=DISPLAY_DPI, resolution=DISPLAY_RES
-    )
+    # if config doesn't exists, copy default over
+    if not config_path.exists():
+        # pull config
+        default_config = resources.files().joinpath("resources", "devices.toml")
+        # copy over
+        with default_config.open("rb") as source, config_path.open("wb") as destination:
+            shutil.copyfileobj(source, destination)
+
+    data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    return {
+        short_name: Device.from_config(short_name, values)
+        for short_name, values in data["devices"].items()
+    }
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    print(f"Running {DIST_NAME} {__version__}...")
+
+    # formats: kindlegen available for mobi
+    if "mobi" in args.formats and not kindlegen_available():
+        raise RuntimeError(
+            "kindlegen is required. Please ensure that it is installed and present in PATH."
+        )
+    input_dir = args.input_path
+    # Construct ebook:
+    image_paths = images_from_dir(input_dir)
+    book = hydrate_book(title=input_dir.stem, image_paths=image_paths)
+    devices = load_device_configs()
+    device = devices[args.device]
+
+    # device = Device(
+    #     alias=DEVICE_SHORT, model=DEVICE_NAME, dpi=DISPLAY_DPI, resolution=DISPLAY_RES
+    # )
 
     appmain(book, device, args.output_path, args.formats, args.workers)

@@ -257,6 +257,7 @@ def main(
     formats: list[str],
     worker_count: int
 ) -> None:
+    print(f"Target device is {device.alias}")
 
     with TemporaryDirectory(prefix='image-batch-') as temp_dir:
         temp_dir = Path(temp_dir)
