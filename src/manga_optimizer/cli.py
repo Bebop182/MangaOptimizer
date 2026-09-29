@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from importlib.metadata import version
 from pathlib import Path
 import argparse
@@ -9,17 +10,11 @@ from manga_optimizer.model.ebook import Ebook, Page
 from manga_optimizer.model.device import Device
 from manga_optimizer.constants import DIST_NAME, WRITING_MODES, WRITING_MODE_ALIASES, SUPPORTED_IMAGES, OUTPUT_FORMATS
 
-DEFAULT_OUTPUT_PATH = Path("./var/output/")
+DEFAULT_OUTPUT_DIR = Path("./var/output/")
 DEFAULT_FORMATS = ["cbz"]
 DEFAULT_FLOW_DIRECTION = "horizontal-rl"
-DEFAULT_WORKERS = 4
-
-# DISPLAY_RES = (1072, 1448) #Kobo Clara Color
-# DEVICE_NAME = "Kindle Basic 8th Gen"
-# DEVICE_SHORT = "k8"
-# DISPLAY_RES = (600, 800)  # Kindle 8th Basic
-# DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
-# DISPLAY_DPI = 167
+DEFAULT_IMAGE_WORKERS = 4
+DEFAULT_TOME_WORKERS = 2
 
 CORES = os.cpu_count()
 __version__ = version(DIST_NAME)
@@ -36,18 +31,30 @@ def validate_input_path(input_value: str) -> Path:
         raise argparse.ArgumentTypeError(
             f'input path should be a directory of images: {input_path}')
 
+    return input_path
+
+
+def validate_tome_directory(path: Path):
+    if path.exists() == False:
+        raise argparse.ArgumentTypeError(
+            f'input path does not exist: {path}')
+
+    if path.is_dir() == False:
+        raise argparse.ArgumentTypeError(
+            f'input path should be a directory of images: {path}')
+
     has_supported_file = any(
         entry.is_file() and entry.suffix.lower() in SUPPORTED_IMAGES
-        for entry in input_path.iterdir()
+        for entry in path.iterdir()
     )
     if has_supported_file == False:
         raise argparse.ArgumentTypeError(
             "input path doesn't contain supported images")
 
-    return input_path
+    return path
 
 
-def validate_output_path(output_value: str) -> Path:
+def validate_output_dir(output_value: str) -> Path:
     output_path = Path(output_value)
     # output path: exists, is writable
     if output_path.exists() == False:
@@ -93,9 +100,9 @@ def build_parser():
 
     parser.add_argument(
         "-o",
-        "--output-path",
-        type=validate_output_path,
-        default=DEFAULT_OUTPUT_PATH,
+        "--output-dir",
+        type=validate_output_dir,
+        default=DEFAULT_OUTPUT_DIR,
         help="Where to export the ebook"
     )
 
@@ -113,13 +120,12 @@ def build_parser():
         help="Target device"
     )
 
-    # parser.add_argument(
-    #     '-r',
-    #     '--recursive',
-    #     type=bool,
-    #     default=False,
-    #     help='Should handle subfolders as individual ebooks'
-    # )
+    parser.add_argument(
+        '-m',
+        '--multi-tome',
+        action="store_true",
+        help='Should handle subfolders as individual ebooks'
+    )
 
     parser.add_argument(
         "-f",
@@ -141,12 +147,20 @@ def build_parser():
     )
 
     parser.add_argument(
-        "-w",
-        "--workers",
+        "-iw",
+        "--image-workers",
         type=int,
-        default=DEFAULT_WORKERS,
+        default=DEFAULT_IMAGE_WORKERS,
         choices=range(1, CORES+1),
-        help="Number of parallel threads"
+        help="Number of parallel image processing threads"
+    )
+    parser.add_argument(
+        "-tw",
+        "--tome-workers",
+        type=int,
+        default=DEFAULT_TOME_WORKERS,
+        choices=range(1, CORES+1),
+        help="Number of parallel tome processing threads"
     )
     return parser
 
@@ -174,7 +188,7 @@ def images_from_dir(directory: Path) -> list[Path]:
         for image_path in directory.iterdir()
         if image_path.is_file() and image_path.suffix.lower() in SUPPORTED_IMAGES
     ]
-    return sorted(image_paths, key=lambda path: path.stem)
+    return sorted(image_paths, key=lambda path: path.stem.casefold())
 
 
 def hydrate_book(title: str, image_paths: list[Path]) -> Ebook:
@@ -226,6 +240,42 @@ def load_device_configs() -> list[Device]:
     }
 
 
+def discover_tome_directories(root: Path, multi: bool) -> list[Path]:
+    if not multi:
+        return [validate_tome_directory(root)]
+
+    entries = sorted(
+        (
+            entry
+            for entry in root.iterdir()
+            if entry.is_dir()
+            and not entry.name.startswith(".")
+        ),
+        key=lambda path: path.name.casefold(),
+    )
+
+    tomes = [
+        path
+        for path in entries
+        if validate_tome_directory(path)
+    ]
+
+    if not tomes:
+        raise ValueError(
+            f"no tome directories containing supported images found in {root}"
+        )
+
+    return tomes
+
+
+def process_tome(tome_dir: Path, device: Device, output_dir: Path, formats: list[str], image_workers: int):
+    # Construct ebook:
+    image_paths = images_from_dir(tome_dir)
+    book = hydrate_book(title=tome_dir.stem, image_paths=image_paths)
+
+    appmain(book, device, output_dir, formats, image_workers)
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -237,15 +287,24 @@ def main() -> int:
         raise RuntimeError(
             "kindlegen is required. Please ensure that it is installed and present in PATH."
         )
-    input_dir = args.input_path
-    # Construct ebook:
-    image_paths = images_from_dir(input_dir)
-    book = hydrate_book(title=input_dir.stem, image_paths=image_paths)
+    # Load device config
     devices = load_device_configs()
     device = devices[args.device]
 
-    # device = Device(
-    #     alias=DEVICE_SHORT, model=DEVICE_NAME, dpi=DISPLAY_DPI, resolution=DISPLAY_RES
-    # )
+    tome_paths = discover_tome_directories(args.input_path, args.multi_tome)
 
-    appmain(book, device, args.output_path, args.formats, args.workers)
+    with ThreadPoolExecutor(max_workers=args.tome_workers) as executor:
+        tome_promises = [
+            executor.submit(process_tome, path, device,
+                            args.output_dir, args.formats, args.image_workers)
+            for path in tome_paths
+        ]
+
+        for promise in as_completed(tome_promises):
+            try:
+                promise.result()
+            except Exception as e:
+                print(e)
+                continue
+            else:
+                print("Tome processing complete.")

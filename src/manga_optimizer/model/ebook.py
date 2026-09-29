@@ -23,11 +23,6 @@ class WritingMode:
     HORIZONTAL_RL = "horizontal_rl"
 
 
-class MobiDocType:
-    PDOC: "PDOC"
-    EBOK: "EBOK"
-
-
 @dataclass(frozen=True)
 class Ebook:
     uid: str = field(init=False)

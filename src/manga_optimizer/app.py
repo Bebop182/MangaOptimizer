@@ -16,12 +16,15 @@ from .constants import SUPPORTED_IMAGES
 from PIL import Image
 import numpy as np
 
-# DISPLAY_RES = (1072, 1448) #Kobo Clara Color
-DEVICE_NAME = "Kindle Basic 8th Gen"
-DEVICE_SHORT = "k8"
 DISPLAY_RES = (600, 800)  # Kindle 8th Basic
 DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
 DISPLAY_DPI = 167
+# Todo:
+# Use device data instead of hardcoded values
+# Better cropping, removing page number
+# Anti-rainbow effect for colored eink using fourier transforms
+# improve test coverage
+# implement progress logging
 
 
 def simple_crop(
@@ -148,7 +151,7 @@ def is_landscape(image: Image.Image) -> bool:
     return False
 
 
-def image_export(image: Image.Image, output_path: Path) -> Path:
+def export_image(image: Image.Image, output_path: Path) -> Path:
     if output_path.suffix == '.png':
         image.save(output_path, optimize=True)
     else:
@@ -177,7 +180,7 @@ def process_image(image: Image.Image) -> Image.Image:
     return image
 
 
-def image_worker(input_path: Path, output_path: Path) -> list[Path]:
+def run_image_processing(input_path: Path, output_path: Path) -> list[Path]:
     if input_path.suffix not in SUPPORTED_IMAGES:
         raise NotImplementedError(
             f'File type not supported: {input_path.suffix}')
@@ -185,38 +188,12 @@ def image_worker(input_path: Path, output_path: Path) -> list[Path]:
     with Image.open(input_path) as image:
         # Run Processing
         image = process_image(image)
-        output_path = image_export(image, output_path)
+        output_path = export_image(image, output_path)
 
     return output_path
 
 
-def process_batch(
-    image_paths: list[Path],
-    processing_job: Callable[[Path, Path], Path],
-    tmp_dir: Path,
-    worker_count: int
-) -> list[Path]:
-    processed = []
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = [
-            executor.submit(processing_job, image_path,
-                            tmp_dir / (image_path.stem + '.png'))
-            for image_path in image_paths
-        ]
-
-        for future in as_completed(futures):
-            try:
-                image_path = future.result()
-            except Exception as e:
-                print(e)
-                continue
-            else:
-                processed.append(image_path)
-    # return processed
-    return sorted(processed, key=lambda path: path.stem)
-
-
-def process_ebook(book: Ebook, workspace: Path, worker_count: int) -> Ebook:
+def process_ebook(book: Ebook, device: Device, workspace: Path, image_workers: int, page_processor: Callable[[Path, Path], Path]) -> Ebook:
     # Processing
     # if 'mobi' in formats:
     cover_path = book.cover.uri
@@ -235,8 +212,23 @@ def process_ebook(book: Ebook, workspace: Path, worker_count: int) -> Ebook:
         page.uri
         for page in book.pages
     ]
-    processed = process_batch(
-        image_paths, image_worker, workspace, worker_count)
+    processed = []
+    with ThreadPoolExecutor(max_workers=image_workers) as executor:
+        futures = [
+            executor.submit(page_processor, image_path,
+                            workspace / (image_path.stem + '.png'))
+            for image_path in image_paths
+        ]
+
+        for future in as_completed(futures):
+            try:
+                image_path = future.result()
+            except Exception as e:
+                print(e)
+                continue
+            else:
+                processed.append(image_path)
+    processed = sorted(processed, key=lambda path: path.stem)
 
     processed_pages = [
         Page(
@@ -255,14 +247,14 @@ def main(
     device: Device,
     output_dir: Path,
     formats: list[str],
-    worker_count: int
+    workers: int
 ) -> None:
     print(f"Target device is {device.alias}")
 
     with TemporaryDirectory(prefix='image-batch-') as temp_dir:
         temp_dir = Path(temp_dir)
-
-        processed_book = process_ebook(book, temp_dir, worker_count)
+        processed_book = process_ebook(
+            book, device, temp_dir, workers, page_processor=run_image_processing)
 
         if 'cbz' in formats:
             CBZExporter().export(processed_book, device, output_dir)

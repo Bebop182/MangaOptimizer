@@ -47,30 +47,11 @@ def pngs_to_epub(
     if not image_paths:
         raise ValueError('No PNG files found')
 
-    width, height = device.resolution
-
     document = bootstrap_epub(book, device)
     cover_suffix = Path(book.cover.uri).suffix
     document.set_cover(book.cover.title+cover_suffix,
                        book.cover.uri.read_bytes(), create_page=True)
     pages = []
-
-    # reset = epub.EpubItem(
-    #     uid='css_reset',
-    #     file_name='styles/reset.css',
-    #     media_type='text/css',
-    #     content=loadCSSReset()
-    # )
-    # epubBook.add_item(reset)
-
-    # style = epub.EpubItem(
-    #     uid='page_style',
-    #     file_name='styles/page.css',
-    #     media_type='text/css',
-    #     content=loadPageStyle()
-    # )
-    # epubBook.add_item(style)
-
     lang = book.language
     width, height = device.resolution
     for image_page in book.pages:
@@ -96,16 +77,6 @@ def pngs_to_epub(
             name='viewport',
             content=f'width={width},height={height}',
         )
-        # page.add_link(
-        #     href='styles/reset.css',
-        #     rel='stylesheet',
-        #     type='text/css',
-        # )
-        # page.add_link(
-        #     href='styles/page.css',
-        #     rel='stylesheet',
-        #     type='text/css',
-        # )
         page.set_content(load_page_template(
             image_page.number, image_filename, width, height))
 
@@ -113,9 +84,6 @@ def pngs_to_epub(
         pages.append(page)
 
     document.spine = pages
-    # direction: Options are "ltr", "rtl" and "default"
-    # document.direction =
-
     document.add_item(epub.EpubNav())
     document.add_item(epub.EpubNcx())
 
@@ -151,7 +119,6 @@ def bootstrap_epub(book: Ebook, device: Device):
     document.add_metadata(namespace=None, name="meta", value=f"{width}x{height}",
                           others={"property": "original-resolution"})
 
-    # <meta name='primary-writing-mode' content='horizontal-rl'/>
     # Valid values are horizontal-lr, horizontal-rl, vertical-lr, and vertical-rl
     # default horizontal-lr
     document.add_metadata(namespace=None, name="meta", value=writing_mode,
@@ -176,13 +143,3 @@ def load_page_template(
         filename=escape(str(image_filename), quote=True),
     )
     return html
-
-
-def loadPageStyle():
-    style_path = RESOURCES_PATH / "page.css"
-    return style_path.read_text(encoding="utf-8")
-
-
-def loadCSSReset():
-    style_path = RESOURCES_PATH / "reset.css"
-    return style_path.read_text(encoding="utf-8")
