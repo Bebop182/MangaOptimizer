@@ -25,11 +25,11 @@ def validate_input_path(input_value: str) -> Path:
     # input path: exists, is directory, has img content
     if input_path.exists() == False:
         raise argparse.ArgumentTypeError(
-            f'input path does not exist: {input_path}')
+            f"input path does not exist: {input_path}")
 
     if input_path.is_dir() == False:
         raise argparse.ArgumentTypeError(
-            f'input path should be a directory of images: {input_path}')
+            f"input path should be a directory of images: {input_path}")
 
     return input_path
 
@@ -37,11 +37,11 @@ def validate_input_path(input_value: str) -> Path:
 def validate_tome_directory(path: Path):
     if path.exists() == False:
         raise argparse.ArgumentTypeError(
-            f'input path does not exist: {path}')
+            f"input path does not exist: {path}")
 
     if path.is_dir() == False:
         raise argparse.ArgumentTypeError(
-            f'input path should be a directory of images: {path}')
+            f"input path should be a directory of images: {path}")
 
     has_supported_file = any(
         entry.is_file() and entry.suffix.lower() in SUPPORTED_IMAGES
@@ -58,15 +58,15 @@ def validate_output_dir(output_value: str) -> Path:
     output_path = Path(output_value)
     # output path: exists, is writable
     if output_path.exists() == False:
-        raise argparse.ArgumentTypeError('output path does not exist')
+        raise argparse.ArgumentTypeError("output path does not exist")
 
     if output_path.is_dir() == False:
         raise argparse.ArgumentTypeError(
-            'output path should be a directory')
+            "output path should be a directory")
 
     if os.access(output_path, os.W_OK) == False:
         raise argparse.ArgumentTypeError(
-            f'Write acces required to output path: {output_path}')
+            f"Write acces required to output path: {output_path}")
 
     return output_path
 
@@ -83,7 +83,7 @@ def get_version():
     try:
         __version__ = version(DIST_NAME)
     except:
-        __version__ = 'unknown'
+        __version__ = "unknown"
     return __version__
 
 
@@ -121,10 +121,10 @@ def build_parser():
     )
 
     parser.add_argument(
-        '-m',
-        '--multi-tome',
+        "-m",
+        "--multi-tome",
         action="store_true",
-        help='Should handle subfolders as individual ebooks'
+        help="Should handle subfolders as individual ebooks"
     )
 
     parser.add_argument(
@@ -167,7 +167,7 @@ def build_parser():
 
 def kindlegen_available() -> bool:
     from shutil import which
-    kindlegen = os.getenv('KINDLEGEN')
+    kindlegen = os.getenv("KINDLEGEN")
     if not kindlegen:
         kindlegen = which("kindlegen")  # Searches PATH for the executable
     return kindlegen != None
@@ -191,7 +191,7 @@ def images_from_dir(directory: Path) -> list[Path]:
     return sorted(image_paths, key=lambda path: path.stem.casefold())
 
 
-def hydrate_book(title: str, image_paths: list[Path]) -> Ebook:
+def hydrate_tome(title: str, image_paths: list[Path]) -> Ebook:
     cover = Page(
         uri=image_paths[0],
         number=0,
@@ -271,9 +271,9 @@ def discover_tome_directories(root: Path, multi: bool) -> list[Path]:
 def process_tome(tome_dir: Path, device: Device, output_dir: Path, formats: list[str], image_workers: int):
     # Construct ebook:
     image_paths = images_from_dir(tome_dir)
-    book = hydrate_book(title=tome_dir.stem, image_paths=image_paths)
+    tome = hydrate_tome(title=tome_dir.stem, image_paths=image_paths)
 
-    appmain(book, device, output_dir, formats, image_workers)
+    appmain(tome, device, output_dir, formats, image_workers)
 
 
 def main() -> int:
@@ -282,7 +282,6 @@ def main() -> int:
 
     print(f"Running {DIST_NAME} {__version__}...")
 
-    # formats: kindlegen available for mobi
     if "mobi" in args.formats and not kindlegen_available():
         raise RuntimeError(
             "kindlegen is required. Please ensure that it is installed and present in PATH."
