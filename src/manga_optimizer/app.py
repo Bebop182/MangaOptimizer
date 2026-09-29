@@ -16,11 +16,7 @@ from .constants import SUPPORTED_IMAGES
 from PIL import Image
 import numpy as np
 
-DISPLAY_RES = (600, 800)  # Kindle 8th Basic
-DISPLAY_RATIO = DISPLAY_RES[0] / DISPLAY_RES[1]
-DISPLAY_DPI = 167
 # Todo:
-# Use device data instead of hardcoded values
 # Better cropping, removing page number
 # Anti-rainbow effect for colored eink using fourier transforms
 # improve test coverage
@@ -69,37 +65,39 @@ def simple_crop(
 
 def smart_resize(
     image: Image.Image,
+    target_size: tuple[int, int],
     max_deform: int = 10
 ) -> Image.Image:
 
-    display_ratio = DISPLAY_RATIO
+    target_width, target_height = target_size
+    display_ratio = target_width / target_height
     image_ratio = image.width / image.height
     tolerance = max_deform / 100
 
+    width = target_width
+    height = target_height
     if image_ratio > display_ratio:
         # L'image est relativement plus large.
         # On conserve la largeur et on modifie la hauteur.
         # width = pil_image.width
-        width = DISPLAY_RES[0]
-        reduction_factor = image.width / DISPLAY_RES[0]
+        reduction_factor = image.width / target_width
 
         required_factor = image_ratio / display_ratio
         applied_factor = min(required_factor, 1.0 + tolerance)
 
         height = round(image.height * applied_factor / reduction_factor)
-        height = min(DISPLAY_RES[1], height)
+        height = min(target_height, height)
 
     else:
         # L'image est relativement plus haute.
         # On conserve la hauteur et on modifie la largeur.
-        height = DISPLAY_RES[1]
-        reduction_factor = image.height / DISPLAY_RES[1]
+        reduction_factor = image.height / target_height
 
         required_factor = display_ratio / image_ratio
         applied_factor = min(required_factor, 1.0 + tolerance)
 
         width = round(image.width * applied_factor / reduction_factor)
-        width = min(DISPLAY_RES[0], width)
+        width = min(target_width, width)
 
     return image.resize((width, height), resample=Image.Resampling.LANCZOS)
 
@@ -159,7 +157,7 @@ def export_image(image: Image.Image, output_path: Path) -> Path:
     return output_path
 
 
-def process_image(image: Image.Image) -> Image.Image:
+def process_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     if image.mode != 'L':
         image = image.convert('L')
 
@@ -173,21 +171,21 @@ def process_image(image: Image.Image) -> Image.Image:
 
     image = simple_crop(image, padding=0)
 
-    image = smart_resize(image, max_deform=10)
+    image = smart_resize(image, size, max_deform=10)
 
     image = image.quantize(colors=16, method=Image.Quantize.MEDIANCUT)
 
     return image
 
 
-def run_image_processing(input_path: Path, output_path: Path) -> list[Path]:
+def run_image_processing(input_path: Path, output_path: Path, size: tuple[int, int]) -> list[Path]:
     if input_path.suffix not in SUPPORTED_IMAGES:
         raise NotImplementedError(
             f'File type not supported: {input_path.suffix}')
 
     with Image.open(input_path) as image:
         # Run Processing
-        image = process_image(image)
+        image = process_image(image, size)
         output_path = export_image(image, output_path)
 
     return output_path
@@ -200,7 +198,7 @@ def process_ebook(book: Ebook, device: Device, workspace: Path, image_workers: i
 
     processed_cover = None
     with Image.open(cover_path) as cover:
-        cover = process_image(cover)
+        cover = process_image(cover, device.resolution)
         cover_path = (workspace / "cover").with_suffix('.jpg')
         cover.convert('L').save(cover_path)
         processed_cover = Page(
@@ -216,7 +214,7 @@ def process_ebook(book: Ebook, device: Device, workspace: Path, image_workers: i
     with ThreadPoolExecutor(max_workers=image_workers) as executor:
         futures = [
             executor.submit(page_processor, image_path,
-                            workspace / (image_path.stem + '.png'))
+                            workspace / (image_path.stem + '.png'), device.resolution)
             for image_path in image_paths
         ]
 
