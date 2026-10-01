@@ -240,28 +240,57 @@ def process_ebook(book: Ebook, device: Device, workspace: Path, image_workers: i
     return Ebook.from_book(book, cover=processed_cover, pages=processed_pages)
 
 
+def export(processed_tome, device, formats, workdir, output_dir):
+    # todo: remove workdir dependency
+    if 'cbz' in formats:
+        CBZExporter().export(processed_tome, device, output_dir)
+    if 'epub' in formats or 'mobi' in formats:
+        destination = output_dir if 'epub' in formats else workdir
+        epub_path = EpubExporter().export(processed_tome, device, destination)
+
+        if 'mobi' in formats:
+            mobi_path = MobiExporter().export(processed_tome, device, epub_path)
+            if 'epub' not in formats:
+                move(mobi_path, output_dir.joinpath(mobi_path.name))
+
+
+def run(tome: Ebook,
+        device: Device,
+        output_dir: Path,
+        formats: list[str],
+        workers: int
+        ):
+
+    with TemporaryDirectory(prefix='image-batch-') as tempdir:
+        workdir = Path(tempdir)
+        processed_tome = process_ebook(
+            tome, device, workdir, workers, page_processor=run_image_processing)
+        export(processed_tome, device, formats, workdir, output_dir)
+
+
 def main(
-    book: Ebook,
+    tomes: list[Ebook],
     device: Device,
     output_dir: Path,
     formats: list[str],
-    workers: int
+    image_workers: int,
+    tome_workers: int
 ) -> None:
     print(f"Target device is {device.alias}")
 
-    with TemporaryDirectory(prefix='image-batch-') as temp_dir:
-        temp_dir = Path(temp_dir)
-        processed_book = process_ebook(
-            book, device, temp_dir, workers, page_processor=run_image_processing)
+    with ThreadPoolExecutor(max_workers=tome_workers) as executor:
+        tome_promises = [
+            executor.submit(run, tome, device,
+                            output_dir, formats,
+                            image_workers)
+            for tome in tomes
+        ]
 
-        if 'cbz' in formats:
-            CBZExporter().export(processed_book, device, output_dir)
-
-        if 'epub' in formats or 'mobi' in formats:
-            destination = output_dir if 'epub' in formats else temp_dir
-            epub_path = EpubExporter().export(processed_book, device, destination)
-
-            if 'mobi' in formats:
-                mobi_path = MobiExporter().export(processed_book, device, epub_path)
-                if 'epub' not in formats:
-                    move(mobi_path, output_dir.joinpath(mobi_path.name))
+        for promise in as_completed(tome_promises):
+            try:
+                promise.result()
+            except Exception as e:
+                print(e)
+                continue
+            else:
+                print("Tome processing complete.")

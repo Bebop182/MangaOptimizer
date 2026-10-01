@@ -34,7 +34,7 @@ def validate_input_path(input_value: str) -> Path:
     return input_path
 
 
-def validate_tome_directory(path: Path):
+def validate_tome_directory(path: Path) -> Path:
     if path.exists() == False:
         raise argparse.ArgumentTypeError(
             f"input path does not exist: {path}")
@@ -56,7 +56,6 @@ def validate_tome_directory(path: Path):
 
 def validate_output_dir(output_value: str) -> Path:
     output_path = Path(output_value)
-    # output path: exists, is writable
     if output_path.exists() == False:
         raise argparse.ArgumentTypeError("output path does not exist")
 
@@ -79,7 +78,7 @@ def parse_writing_mode(value: str) -> str:
     return WRITING_MODE_ALIASES.get(value, value)
 
 
-def get_version():
+def get_version() -> str:
     try:
         __version__ = version(DIST_NAME)
     except:
@@ -87,7 +86,7 @@ def get_version():
     return __version__
 
 
-def build_parser():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Pack and process images from a folder to a CBZ/EPUB file optimized for e-readers like Kobo Clara Color"
     )
@@ -268,14 +267,6 @@ def discover_tome_directories(root: Path, multi: bool) -> list[Path]:
     return tomes
 
 
-def process_tome(tome_dir: Path, device: Device, output_dir: Path, formats: list[str], image_workers: int):
-    # Construct ebook:
-    image_paths = images_from_dir(tome_dir)
-    tome = hydrate_tome(title=tome_dir.stem, image_paths=image_paths)
-
-    appmain(tome, device, output_dir, formats, image_workers)
-
-
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -291,19 +282,16 @@ def main() -> int:
     device = devices[args.device]
 
     tome_paths = discover_tome_directories(args.input_path, args.multi_tome)
+    tomes = [
+        hydrate_tome(title=tomedir.stem,
+                     image_paths=images_from_dir(tomedir))
+        for tomedir in tome_paths
+    ]
 
-    with ThreadPoolExecutor(max_workers=args.tome_workers) as executor:
-        tome_promises = [
-            executor.submit(process_tome, path, device,
-                            args.output_dir, args.formats, args.image_workers)
-            for path in tome_paths
-        ]
+    output_dir = args.output_dir
+    formats = args.formats
+    image_workers = args.image_workers
+    tome_workers = args.tome_workers
 
-        for promise in as_completed(tome_promises):
-            try:
-                promise.result()
-            except Exception as e:
-                print(e)
-                continue
-            else:
-                print("Tome processing complete.")
+    appmain(tomes, device, output_dir,
+            formats, image_workers, tome_workers)
