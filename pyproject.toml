@@ -1,6 +1,6 @@
 [project]
 name = "manga-optimizer"
-version = "0.2.0"
+version = "0.2.5"
 description = "Optimize manga files for e-readers"
 readme = "README.md"
 license-files = ["LICENSE"]

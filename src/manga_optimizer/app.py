@@ -27,7 +27,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def simple_crop(
+def page_crop(
     image: Image.Image,
     threshold: int = 30,
     padding: int = 8,
@@ -54,15 +54,37 @@ def simple_crop(
     # Pixels sufficiently different from the background are content.
     content = np.abs(pixels.astype(np.int16) - background) > threshold
 
+    content_per_row = content.sum(axis=1)
+    content_per_column = content.sum(axis=0)
+
+    row_ratio = content_per_row / width
+    column_ratio = content_per_column / height
+
+    min_content_ratio = 0.03
+    valid_rows = row_ratio >= min_content_ratio
+    valid_columns = column_ratio >= min_content_ratio
+
+    # mask line and column with too few content pixels
+    content[~valid_rows, :] = False
+    content[:, ~valid_columns] = False
+
     ys, xs = np.where(content)
 
     if len(xs) == 0:
-        raise ValueError('No content detected')
+        raise ValueError("No content detected")
 
     left = max(0, int(xs.min()) - padding)
     top = max(0, int(ys.min()) - padding)
     right = min(width, int(xs.max()) + padding + 1)
     bottom = min(height, int(ys.max()) + padding + 1)
+
+    x_croppedratio = (left + width - right) / width
+    y_croppedratio = (top + height - bottom) / height
+
+    # cancel crop if the page is mostly empty to avoid losing framing of small elements
+
+    if x_croppedratio >= 0.2 and y_croppedratio >= 0.2:
+        return image
 
     return image.crop((left, top, right, bottom))
 
@@ -176,7 +198,8 @@ def process_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
         image = image.rotate(-90, expand=True,
                              resample=Image.Resampling.NEAREST)
     og_size = image.size
-    image = simple_crop(image, padding=0)
+    image = page_crop(image, padding=0)
+
     logger.debug(
         f"\t{image_name} cropped to {image.size} from {og_size}")
 
