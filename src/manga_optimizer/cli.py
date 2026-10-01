@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from importlib.metadata import version
 from pathlib import Path
+import logging
 import argparse
 import os
 import sys
@@ -12,12 +13,14 @@ from manga_optimizer.constants import DIST_NAME, WRITING_MODES, WRITING_MODE_ALI
 
 DEFAULT_OUTPUT_DIR = Path("./var/output/")
 DEFAULT_FORMATS = ["cbz"]
-DEFAULT_FLOW_DIRECTION = "horizontal-rl"
+DEFAULT_FLOW_DIRECTION = "horizontal-lr"
 DEFAULT_IMAGE_WORKERS = 4
 DEFAULT_TOME_WORKERS = 2
 
 CORES = os.cpu_count()
 __version__ = version(DIST_NAME)
+
+logger = logging.getLogger(__name__)
 
 
 def validate_input_path(input_value: str) -> Path:
@@ -84,84 +87,6 @@ def get_version() -> str:
     except:
         __version__ = "unknown"
     return __version__
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Pack and process images from a folder to a CBZ/EPUB file optimized for e-readers like Kobo Clara Color"
-    )
-
-    parser.add_argument(
-        "input_path",
-        type=validate_input_path,
-        help="Path to the image file"
-    )
-
-    parser.add_argument(
-        "-o",
-        "--output-dir",
-        type=validate_output_dir,
-        default=DEFAULT_OUTPUT_DIR,
-        help="Where to export the ebook"
-    )
-
-    parser.add_argument(
-        "-v",
-        "--version",
-        action="version",
-        version=f"%(prog)s {get_version()}"
-    )
-
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="k8",
-        help="Target device"
-    )
-
-    parser.add_argument(
-        "-m",
-        "--multi-tome",
-        action="store_true",
-        help="Should handle subfolders as individual ebooks"
-    )
-
-    parser.add_argument(
-        "-f",
-        "--formats",
-        choices=OUTPUT_FORMATS,
-        type=str,
-        nargs="+",
-        default=DEFAULT_FORMATS,
-        help="Output formats"
-    )
-
-    parser.add_argument(
-        "-d",
-        "--flow-direction",
-        type=parse_writing_mode,
-        default=DEFAULT_FLOW_DIRECTION,
-        choices=WRITING_MODES,
-        help="Page turning direction (default: horizontal-rl)",
-    )
-
-    parser.add_argument(
-        "-iw",
-        "--image-workers",
-        type=int,
-        default=DEFAULT_IMAGE_WORKERS,
-        choices=range(1, CORES+1),
-        help="Number of parallel image processing threads"
-    )
-    parser.add_argument(
-        "-tw",
-        "--tome-workers",
-        type=int,
-        default=DEFAULT_TOME_WORKERS,
-        choices=range(1, CORES+1),
-        help="Number of parallel tome processing threads"
-    )
-    return parser
 
 
 def kindlegen_available() -> bool:
@@ -267,11 +192,94 @@ def discover_tome_directories(root: Path, multi: bool) -> list[Path]:
     return tomes
 
 
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Pack and process images from a folder to a CBZ/EPUB file optimized for e-readers like Kobo Clara Color"
+    )
+
+    parser.add_argument(
+        "input_path",
+        type=validate_input_path,
+        help="Path to the image file"
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        type=validate_output_dir,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Where to export the ebook"
+    )
+
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"%(prog)s {get_version()}"
+    )
+
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="k8",
+        help="Target device"
+    )
+
+    parser.add_argument(
+        "-m",
+        "--multi-tome",
+        action="store_true",
+        help="Should handle subfolders as individual ebooks"
+    )
+
+    parser.add_argument(
+        "-f",
+        "--formats",
+        choices=OUTPUT_FORMATS,
+        type=str,
+        nargs="+",
+        default=DEFAULT_FORMATS,
+        help="Output formats"
+    )
+
+    parser.add_argument(
+        "-d",
+        "--flow-direction",
+        type=parse_writing_mode,
+        default=DEFAULT_FLOW_DIRECTION,
+        choices=WRITING_MODES,
+        help="Page turning direction (default: horizontal-rl)",
+    )
+
+    parser.add_argument(
+        "-iw",
+        "--image-workers",
+        type=int,
+        default=DEFAULT_IMAGE_WORKERS,
+        choices=range(1, CORES+1),
+        help="Number of parallel image processing threads"
+    )
+    parser.add_argument(
+        "-tw",
+        "--tome-workers",
+        type=int,
+        default=DEFAULT_TOME_WORKERS,
+        choices=range(1, CORES+1),
+        help="Number of parallel tome processing threads"
+    )
+    return parser
+
+
 def main() -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s\t %(message)s"  # : %(name)s
+    )
+
     parser = build_parser()
     args = parser.parse_args()
 
-    print(f"Running {DIST_NAME} {__version__}...")
+    logger.info(f"Running {DIST_NAME} {__version__}...")
 
     if "mobi" in args.formats and not kindlegen_available():
         raise RuntimeError(
@@ -288,10 +296,5 @@ def main() -> int:
         for tomedir in tome_paths
     ]
 
-    output_dir = args.output_dir
-    formats = args.formats
-    image_workers = args.image_workers
-    tome_workers = args.tome_workers
-
-    appmain(tomes, device, output_dir,
-            formats, image_workers, tome_workers)
+    appmain(tomes, device, args.output_dir,
+            args.formats, args.image_workers, args.tome_workers)

@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from shutil import move
 import argparse
+import logging
 
 from .export.epub import EpubExporter
 from .export.mobi import MobiExporter
@@ -17,10 +18,13 @@ from PIL import Image
 import numpy as np
 
 # Todo:
+# Support epub direction
 # Better cropping, removing page number
 # Anti-rainbow effect for colored eink using fourier transforms
 # improve test coverage
 # implement progress logging
+
+logger = logging.getLogger(__name__)
 
 
 def simple_crop(
@@ -158,22 +162,29 @@ def export_image(image: Image.Image, output_path: Path) -> Path:
 
 
 def process_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    image_name = Path(image.filename).stem
+
     if image.mode != 'L':
         image = image.convert('L')
 
     if not has_content(image):
-        raise ValueError(f"{image} doesn't seem to hold any content")
+        raise ValueError(f"{image_name} doesn't seem to hold any content")
 
     # check orientation for double pages
     if is_landscape(image):
+        logger.debug(f"\trotating {image_name}")
         image = image.rotate(-90, expand=True,
                              resample=Image.Resampling.NEAREST)
-
+    og_size = image.size
     image = simple_crop(image, padding=0)
+    logger.debug(
+        f"\t{image_name} cropped to {image.size} from {og_size}")
 
     image = smart_resize(image, size, max_deform=10)
+    logger.debug(f"\t{image_name} resized to {image.size}")
 
     image = image.quantize(colors=16, method=Image.Quantize.MEDIANCUT)
+    logger.debug(f"\t{image_name} quantized to 16 shades")
 
     return image
 
@@ -183,18 +194,22 @@ def run_image_processing(input_path: Path, output_path: Path, size: tuple[int, i
         raise NotImplementedError(
             f'File type not supported: {input_path.suffix}')
 
+    logger.debug(f"processing {input_path.stem}...")
+
     with Image.open(input_path) as image:
         # Run Processing
         image = process_image(image, size)
         output_path = export_image(image, output_path)
 
+    logger.debug(f"{input_path.name} done.")
+
     return output_path
 
 
-def process_ebook(book: Ebook, device: Device, workspace: Path, image_workers: int, page_processor: Callable[[Path, Path], Path]) -> Ebook:
+def process_tome(tome: Ebook, device: Device, workspace: Path, image_workers: int, page_processor: Callable[[Path, Path], Path]) -> Ebook:
     # Processing
     # if 'mobi' in formats:
-    cover_path = book.cover.uri
+    cover_path = tome.cover.uri
 
     processed_cover = None
     with Image.open(cover_path) as cover:
@@ -204,11 +219,11 @@ def process_ebook(book: Ebook, device: Device, workspace: Path, image_workers: i
         processed_cover = Page(
             uri=cover_path,
             number=0,
-            title=book.cover.title
+            title=tome.cover.title
         )
     image_paths = [
         page.uri
-        for page in book.pages
+        for page in tome.pages
     ]
     processed = []
     with ThreadPoolExecutor(max_workers=image_workers) as executor:
@@ -232,12 +247,12 @@ def process_ebook(book: Ebook, device: Device, workspace: Path, image_workers: i
         Page(
             uri=path,
             number=index+1,
-            title=book.pages[index].title
+            title=tome.pages[index].title
         )
         for index, path in enumerate(processed)
     ]
 
-    return Ebook.from_book(book, cover=processed_cover, pages=processed_pages)
+    return Ebook.from_book(tome, cover=processed_cover, pages=processed_pages)
 
 
 def export(processed_tome, device, formats, workdir, output_dir):
@@ -259,13 +274,17 @@ def run(tome: Ebook,
         output_dir: Path,
         formats: list[str],
         workers: int
-        ):
-
-    with TemporaryDirectory(prefix='image-batch-') as tempdir:
+        ) -> Ebook:
+    logger.info(f"Processing {tome.title}...")
+    with TemporaryDirectory(prefix="image-batch-") as tempdir:
         workdir = Path(tempdir)
-        processed_tome = process_ebook(
+        processed_tome = process_tome(
             tome, device, workdir, workers, page_processor=run_image_processing)
+        logger.info(
+            f"The processing of {tome.title} has been completed.\n Exporting...")
         export(processed_tome, device, formats, workdir, output_dir)
+        logger.info(f"{tome.title} export has been completed.")
+        return processed_tome
 
 
 def main(
@@ -276,7 +295,7 @@ def main(
     image_workers: int,
     tome_workers: int
 ) -> None:
-    print(f"Target device is {device.alias}")
+    logger.info(f"Target device is {device.alias}")
 
     with ThreadPoolExecutor(max_workers=tome_workers) as executor:
         tome_promises = [
@@ -288,9 +307,9 @@ def main(
 
         for promise in as_completed(tome_promises):
             try:
-                promise.result()
+                tome = promise.result()
             except Exception as e:
-                print(e)
+                logger.error(e)
                 continue
             else:
-                print("Tome processing complete.")
+                logger.info(f"{tome.title} done.")
