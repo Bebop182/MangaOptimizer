@@ -1,16 +1,21 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from importlib.metadata import version
-from pathlib import Path
-import logging
 import argparse
-import sys
+import logging
 import os
 import re
+import sys
+from importlib.metadata import version
+from pathlib import Path
 
 from manga_optimizer.app import main as appmain
-from manga_optimizer.model.ebook import Ebook, Page
+from manga_optimizer.constants import (
+    DIST_NAME,
+    OUTPUT_FORMATS,
+    SUPPORTED_IMAGES,
+    WRITING_MODE_ALIASES,
+    WRITING_MODES,
+)
 from manga_optimizer.model.device import Device
-from manga_optimizer.constants import DIST_NAME, WRITING_MODES, WRITING_MODE_ALIASES, SUPPORTED_IMAGES, OUTPUT_FORMATS
+from manga_optimizer.model.ebook import Ebook, Page
 
 DEFAULT_OUTPUT_DIR = Path("./var/output/")
 DEFAULT_FORMATS = ["cbz"]
@@ -87,7 +92,7 @@ def parse_limit(value: str):
         limit = int(value)
     except (TypeError, ValueError) as e:
         raise argparse.ArgumentTypeError(
-            f"limit should be a signed integer", e
+            "limit should be a signed integer", e
         )
     else:
         return limit
@@ -96,7 +101,8 @@ def parse_limit(value: str):
 def get_version() -> str:
     try:
         __version__ = version(DIST_NAME)
-    except:
+    except BaseException as e:  # noqa: BLE001
+        logger.warning(e)
         __version__ = "unknown"
     return __version__
 
@@ -151,10 +157,11 @@ def hydrate_tome(title: str, image_paths: list[Path]) -> Ebook:
 
 def load_device_configs() -> list[Device]:
     # Load device parameter:
-    from platformdirs import user_config_dir
-    from importlib import resources
     import shutil
+    from importlib import resources
+
     import tomllib
+    from platformdirs import user_config_dir
 
     # user_config_dir provides a platform specific safe dir for config files
     config_dir = Path(user_config_dir(DIST_NAME))
@@ -356,7 +363,7 @@ def main() -> int:
     logger.debug(tome_paths)
 
     if not confirm():
-        logger.warn("Job cancelled.")
+        logger.warning("Job cancelled.")
         return
 
     tomes = [
