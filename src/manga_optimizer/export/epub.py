@@ -1,16 +1,12 @@
-from collections.abc import Iterable
-from pathlib import Path
-from uuid import uuid4
-from io import BytesIO
-from string import Template
 from html import escape
 from importlib import resources
+from pathlib import Path
+from string import Template
 
-from ..model.ebook import Ebook
-from ..model.device import Device
-
-from PIL import Image
 from ebooklib import epub
+
+from ..model.device import Device
+from ..model.ebook import Ebook
 
 RESOURCES_PATH = resources.files("manga_optimizer") / "resources"
 
@@ -19,10 +15,6 @@ class EpubExporter:
     suffix: str = '.epub'
 
     def export(self, book: Ebook, device: Device, destination: Path) -> Path:
-        image_paths = [
-            page.uri
-            for page in book.pages
-        ]
         filepath = destination/(book.title+self.suffix)
         pngs_to_epub(
             book,

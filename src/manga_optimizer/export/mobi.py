@@ -1,13 +1,12 @@
-from shutil import which
-from pathlib import Path
-import subprocess
-import struct
-import hashlib
 import base64
+import hashlib
 import os
+import subprocess
+from pathlib import Path
+from shutil import which
 
-from ..model.ebook import Ebook
 from ..model.device import Device
+from ..model.ebook import Ebook
 
 
 class MobiExporter:
@@ -46,11 +45,6 @@ def epub_to_mobi(book: Ebook, epub: Path):
             "kindlegen is required. Install it and ensure it is on PATH."
         )
 
-    # kindlegen_cmd = [
-    #     kindlegen,
-    #     epub,
-    #     "-dont_append_source",
-    # ]
     kindlegen_cmd = f'{kindlegen} "{epub}" -dont_append_source'
 
     try:
@@ -69,11 +63,6 @@ def epub_to_mobi(book: Ebook, epub: Path):
         print(error.stdout)
     else:
         mobi_path = epub.with_suffix(".mobi")
-        # metadatas = [
-        #     (113, book.uid),
-        #     (501, "PDOC")
-        # ]
-        # # set_exth(mobi_path, metadatas)
-        # print_exth(mobi_path)
+        # todo: edit EXTH metadata
         return mobi_path
     return None

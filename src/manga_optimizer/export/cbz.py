@@ -1,8 +1,9 @@
-from manga_optimizer.model.ebook import Ebook
-from manga_optimizer.model.device import Device
-from manga_optimizer.constants import WRITING_MODE_ALIASES
-from zipfile import ZipFile, ZIP_DEFLATED
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+from manga_optimizer.constants import WRITING_MODE_ALIASES
+from manga_optimizer.model.device import Device
+from manga_optimizer.model.ebook import Ebook
 
 
 class CBZExporter:

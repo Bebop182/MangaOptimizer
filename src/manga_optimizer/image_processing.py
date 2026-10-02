@@ -168,7 +168,6 @@ def process_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
                              resample=Image.Resampling.NEAREST)
     og_size = image.size
     image = page_crop(image, padding=0)
-
     logger.debug(
         f"\t{image_name} cropped to {image.size} from {og_size}")
 

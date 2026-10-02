@@ -17,8 +17,8 @@ from .model.device import Device
 from .model.ebook import Ebook, Page
 
 # Todo:
-# Support epub direction
-# Better cropping, removing page number
+# Add back color support
+# Support epub page direction metadata
 # Anti-rainbow effect for colored eink using fourier transforms
 # improve test coverage
 # implement progress logging
@@ -79,8 +79,8 @@ def process_tome(tome: Ebook, device: Device, workspace: Path, image_workers: in
         for future in as_completed(futures):
             try:
                 image_path = future.result()
-            except Exception as e:
-                print(e)
+            except BaseException as e:  # noqa: BLE001
+                logger.warning(e)
                 continue
             else:
                 processed.append(image_path)
@@ -149,8 +149,8 @@ def main(
         for promise in as_completed(tome_promises):
             try:
                 promise.result()
-            except Exception as e:
-                logger.error(e)
+            except BaseException as e:  # noqa: BLE001
+                logger.warning(e)
                 continue
             # else:
             #     logger.info(f"{tome.title} done.")

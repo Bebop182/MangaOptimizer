@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
-import hashlib
 import base64
+import hashlib
+from dataclasses import dataclass, field, replace
 
 
 @dataclass(frozen=True)
