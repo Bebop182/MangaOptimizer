@@ -230,8 +230,6 @@ def run_image_processing(input_path: Path, output_path: Path, size: tuple[int, i
 
 
 def process_tome(tome: Ebook, device: Device, workspace: Path, image_workers: int, page_processor: Callable[[Path, Path], Path]) -> Ebook:
-    # Processing
-    # if 'mobi' in formats:
     cover_path = tome.cover.uri
 
     processed_cover = None
@@ -304,7 +302,7 @@ def run(tome: Ebook,
         processed_tome = process_tome(
             tome, device, workdir, workers, page_processor=run_image_processing)
         logger.info(
-            f"The processing of {tome.title} has been completed.\n Exporting...")
+            f"{tome.title} is ready.\n Exporting...")
         export(processed_tome, device, formats, workdir, output_dir)
         logger.info(f"{tome.title} export has been completed.")
         return processed_tome
@@ -318,8 +316,6 @@ def main(
     image_workers: int,
     tome_workers: int
 ) -> None:
-    logger.info(f"Target device is {device.alias}")
-
     with ThreadPoolExecutor(max_workers=tome_workers) as executor:
         tome_promises = [
             executor.submit(run, tome, device,
@@ -334,5 +330,5 @@ def main(
             except Exception as e:
                 logger.error(e)
                 continue
-            else:
-                logger.info(f"{tome.title} done.")
+            # else:
+            #     logger.info(f"{tome.title} done.")

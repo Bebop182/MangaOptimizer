@@ -3,8 +3,9 @@ from importlib.metadata import version
 from pathlib import Path
 import logging
 import argparse
-import os
 import sys
+import os
+import re
 
 from manga_optimizer.app import main as appmain
 from manga_optimizer.model.ebook import Ebook, Page
@@ -23,7 +24,7 @@ __version__ = version(DIST_NAME)
 logger = logging.getLogger(__name__)
 
 
-def validate_input_path(input_value: str) -> Path:
+def parse_input_path(input_value: str) -> Path:
     input_path = Path(input_value)
     # input path: exists, is directory, has img content
     if input_path.exists() == False:
@@ -57,7 +58,7 @@ def validate_tome_directory(path: Path) -> Path:
     return path
 
 
-def validate_output_dir(output_value: str) -> Path:
+def parse_output_dir(output_value: str) -> Path:
     output_path = Path(output_value)
     if output_path.exists() == False:
         raise argparse.ArgumentTypeError("output path does not exist")
@@ -79,6 +80,17 @@ def parse_writing_mode(value: str) -> str:
     # Input "rl" - returns "horizontal-rl"
     # Input "horizontal-lr" - key not found, so returns the fallback "horizontal-lr"
     return WRITING_MODE_ALIASES.get(value, value)
+
+
+def parse_limit(value: str):
+    try:
+        limit = int(value)
+    except (TypeError, ValueError) as e:
+        raise argparse.ArgumentTypeError(
+            f"limit should be a signed integer", e
+        )
+    else:
+        return limit
 
 
 def get_version() -> str:
@@ -156,11 +168,15 @@ def load_device_configs() -> list[Device]:
         # copy over
         with default_config.open("rb") as source, config_path.open("wb") as destination:
             shutil.copyfileobj(source, destination)
+        logger.info(f"Creating default config at {default_config}")
 
     data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    devices = data["devices"].items()
+    logger.debug(f"{len(devices)} device configs loaded.")
+
     return {
         short_name: Device.from_config(short_name, values)
-        for short_name, values in data["devices"].items()
+        for short_name, values in devices
     }
 
 
@@ -199,14 +215,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "input_path",
-        type=validate_input_path,
+        type=parse_input_path,
         help="Path to the image file"
     )
 
     parser.add_argument(
         "-o",
         "--output-dir",
-        type=validate_output_dir,
+        type=parse_output_dir,
         default=DEFAULT_OUTPUT_DIR,
         help="Where to export the ebook"
     )
@@ -259,6 +275,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=range(1, CORES+1),
         help="Number of parallel image processing threads"
     )
+
     parser.add_argument(
         "-tw",
         "--tome-workers",
@@ -267,7 +284,39 @@ def build_parser() -> argparse.ArgumentParser:
         choices=range(1, CORES+1),
         help="Number of parallel tome processing threads"
     )
+
+    parser.add_argument(
+        "-l",
+        "--limit",
+        type=parse_limit,
+        default=0,
+        help="Upper or lower skip for multi tome processing"
+    )
     return parser
+
+
+def natural_key(path):
+    name = str(path).casefold()
+    return [
+        int(part) if part.isdigit() else part
+        for part in re.split(r"(\d+)", name)
+    ]
+
+
+def confirm(prompt="Continue?"):
+    while True:
+        try:
+            answer = input(f"{prompt} [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            sys.stderr.write("\n")
+            return False
+
+        if answer in ("y", "yes"):
+            return True
+        if answer in ("", "n", "no"):
+            return False
+
+        sys.stderr.write("Please answer 'y' or 'n'.")
 
 
 def main() -> int:
@@ -289,7 +338,27 @@ def main() -> int:
     devices = load_device_configs()
     device = devices[args.device]
 
-    tome_paths = discover_tome_directories(args.input_path, args.multi_tome)
+    logger.info(f"Optimizing for {device.model}")
+
+    tome_paths = discover_tome_directories(
+        args.input_path, args.multi_tome)
+    tome_paths = sorted(tome_paths, key=natural_key)
+    logger.debug(tome_paths)
+
+    limit = args.limit if args.multi_tome else 0
+    if limit >= 1:
+        tome_paths = tome_paths[:limit]
+        logger.info(f"Selected tomes 1 to {limit}")
+    else:
+        tome_paths = tome_paths[-limit-1:]
+        logger.info(f"Selected tomes: {-limit+1}" +
+                    (f"to {len(tome_paths)}" if limit < 0 else ""))
+    logger.debug(tome_paths)
+
+    if not confirm():
+        logger.warn("Job cancelled.")
+        return
+
     tomes = [
         hydrate_tome(title=tomedir.stem,
                      image_paths=images_from_dir(tomedir))
