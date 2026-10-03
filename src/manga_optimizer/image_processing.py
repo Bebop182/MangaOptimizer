@@ -9,15 +9,17 @@ logger = logging.getLogger(__name__)
 
 def page_crop(
     image: Image.Image,
-    threshold: int = 30,
-    padding: int = 8,
+    bg_threshold: int = 30,
+    padding: int = 0,
+    min_content_ratio: float = 0.03
 ) -> Image.Image:
     '''
     Crop a Pillow image to its non-background content.
 
     Works with black-on-white and white-on-black scans.
     '''
-    pixels = np.asarray(image)
+    bw_image = image.convert("L") if image.mode != "L" else image
+    pixels = np.asarray(bw_image)
 
     height, width = pixels.shape
     corner_size = max(1, min(height, width) // 25)
@@ -32,7 +34,7 @@ def page_crop(
     background = np.median(corners)
 
     # Pixels sufficiently different from the background are content.
-    content = np.abs(pixels.astype(np.int16) - background) > threshold
+    content = np.abs(pixels.astype(np.int16) - background) > bg_threshold
 
     content_per_row = content.sum(axis=1)
     content_per_column = content.sum(axis=0)
@@ -40,7 +42,6 @@ def page_crop(
     row_ratio = content_per_row / width
     column_ratio = content_per_column / height
 
-    min_content_ratio = 0.03
     valid_rows = row_ratio >= min_content_ratio
     valid_columns = column_ratio >= min_content_ratio
 
@@ -152,14 +153,43 @@ def has_content(image, threshold=12, min_fraction=0.001) -> bool:
     return np.count_nonzero(content) / content.size >= min_fraction
 
 
-def process_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
-    image_name = Path(image.filename).stem
+def has_color(image: Image.Image, saturation_threshold = 0.2, colorpixels_threshold = 0.01):
+    if image.mode in ("1", "L", "LA"): return False
+    image.thumbnail((512, 512))
 
-    if image.mode != 'L':
-        image = image.convert('L')
+    rgb = np.asarray(image, dtype=np.float32) / 255.0
+
+    high_channel = np.max(rgb, axis=2)
+    low_channel = np.min(rgb, axis=2)
+    delta = high_channel - low_channel
+
+    # HSV saturation: S = delta / high_channel
+    saturation = np.zeros_like(high_channel)
+    np.divide(
+        delta,
+        high_channel,
+        out=saturation,
+        where=high_channel != 0,
+    )
+
+    colorful_pixels = saturation > saturation_threshold
+    fraction = np.mean(colorful_pixels)
+
+    return fraction >= colorpixels_threshold
+
+
+def process_image(image: Image.Image, target_size: tuple[int, int], quantize: bool = True) -> Image.Image:
+    image_name = Path(image.filename).stem
 
     if not has_content(image):
         raise ValueError(f"{image_name} doesn't seem to hold any content")
+
+    # has color?
+    if image.mode in ("1", "L", "LA") or not has_color(image):
+        image = image.convert("L")
+
+    if image.mode != "L":
+        image = image.convert("RGB")
 
     # check orientation for double pages
     if is_landscape(image):
@@ -171,10 +201,15 @@ def process_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     logger.debug(
         f"\t{image_name} cropped to {image.size} from {og_size}")
 
-    image = smart_resize(image, size, max_deform=10)
+    image = smart_resize(image, target_size, max_deform=10)
     logger.debug(f"\t{image_name} resized to {image.size}")
+    if not quantize:
+        return image
 
-    image = image.quantize(colors=16, method=Image.Quantize.MEDIANCUT)
-    logger.debug(f"\t{image_name} quantized to 16 shades")
+    shades = 16
+    if image.mode == "RGB":
+        shades = 4096
+    image = image.quantize(colors=shades, method=Image.Quantize.MEDIANCUT)
+    logger.debug(f"\t{image_name} quantized to {shades} shades")
 
     return image

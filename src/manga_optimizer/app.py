@@ -17,7 +17,6 @@ from .model.device import Device
 from .model.ebook import Ebook, Page
 
 # Todo:
-# Add back color support
 # Support epub page direction metadata
 # Anti-rainbow effect for colored eink using fourier transforms
 # improve test coverage
@@ -43,7 +42,7 @@ def run_image_processing(input_path: Path, output_path: Path, size: tuple[int, i
 
     with Image.open(input_path) as image:
         # Run Processing
-        image = process_image(image, size)
+        image = process_image(image, target_size=size)
         output_path = export_image(image, output_path)
 
     logger.debug(f"{input_path.name} done.")
@@ -56,9 +55,9 @@ def process_tome(tome: Ebook, device: Device, workspace: Path, image_workers: in
 
     processed_cover = None
     with Image.open(cover_path) as cover:
-        cover = process_image(cover, device.resolution)
+        cover = process_image(cover, device.resolution, quantize=False)
         cover_path = (workspace / "cover").with_suffix('.jpg')
-        cover.convert('L').save(cover_path)
+        cover.save(cover_path)
         processed_cover = Page(
             uri=cover_path,
             number=0,

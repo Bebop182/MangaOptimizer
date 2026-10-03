@@ -366,8 +366,12 @@ def main() -> int:
         logger.warning("Job cancelled.")
         return
 
+    title_preffix = ""
+    if args.multi_tome:
+        title_preffix = args.input_path.stem + " - "
+
     tomes = [
-        hydrate_tome(title=tomedir.stem,
+        hydrate_tome(title=title_preffix+tomedir.stem,
                      image_paths=images_from_dir(tomedir))
         for tomedir in tome_paths
     ]
